@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "926336538062",
+    "project_id": "veras-a42b5",
+    "storage_bucket": "veras-a42b5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926336538062:android:802f0afb210c7bec92479f",
+        "android_client_info": {
+          "package_name": "veras.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGJjFBY7VDQ2ykWmYpu6a_LUPpomVwgMA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

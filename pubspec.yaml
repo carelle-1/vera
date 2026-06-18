@@ -1,0 +1,39 @@
+name: veras
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.2.2
+  file_picker: ^11.0.2
+  cached_network_image: ^3.3.1
+  url_launcher: ^6.3.1
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  cloud_firestore: ^5.6.12
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+   android: true
+   ios: true
+   image_path: "assets/vera.png"
+
+flutter:
+   uses-material-design: true
+
+   assets:
+     - assets/vera.png
+     - assets/vera1.png
