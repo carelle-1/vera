@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../auth_service.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -97,11 +98,180 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   int _profilePageIndex = 0;
   final List<String> _diplomas = [];
   String _searchQuery = '';
+  Map<String, dynamic>? _selectedOffer;
+  bool _autoApplyEnabled = false;
+  final Set<String> _appliedOfferIds = {};
+  final Set<String> _pendingAutoApplyOfferIds = {};
+  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
   void initState() {
     super.initState();
     _loadProfileData();
+    _initNotifications();
+    _loadAppliedOffers();
+  }
+
+  Future<void> _loadAppliedOffers() async {
+    if (userSession.userId == null) return;
+    try {
+      final snapshot = await firestore
+          .collection('applications')
+          .where('userId', isEqualTo: userSession.userId)
+          .get();
+      setState(() {
+        _appliedOfferIds.addAll(snapshot.docs.map((d) => d.data()['offerId'] as String));
+      });
+    } catch (e) {}
+  }
+
+  Future<void> _initNotifications() async {
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings();
+    const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    await _notificationsPlugin.initialize(initSettings);
+  }
+
+  Future<void> _showNotification(String title, String body) async {
+    const androidDetails = AndroidNotificationDetails(
+      'vera_channel',
+      'VERA Notifications',
+      channelDescription: 'Notifications de candidatures',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const iosDetails = DarwinNotificationDetails();
+    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    await _notificationsPlugin.show(0, title, body, details);
+  }
+
+  Future<void> _saveUserNotification({
+    required String title,
+    required String body,
+    required String offerId,
+    required String offerTitle,
+    required bool automatic,
+  }) async {
+    if (userSession.userId == null) return;
+    await firestore.collection('jobseeker_notifications').add({
+      'userId': userSession.userId,
+      'title': title,
+      'body': body,
+      'offerId': offerId,
+      'offerTitle': offerTitle,
+      'automatic': automatic,
+      'read': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _markNotificationsAsRead() async {
+    if (userSession.userId == null) return;
+    final snapshot = await firestore
+        .collection('jobseeker_notifications')
+        .where('userId', isEqualTo: userSession.userId)
+        .get();
+    final batch = firestore.batch();
+    var hasUpdates = false;
+    for (final doc in snapshot.docs) {
+      if (doc.data()['read'] == false) {
+        batch.update(doc.reference, {'read': true});
+        hasUpdates = true;
+      }
+    }
+    if (hasUpdates) {
+      await batch.commit();
+    }
+  }
+
+  Future<void> _applyToOffer([QueryDocumentSnapshot? offer, bool automatic = false]) async {
+    String offerId;
+    String offerTitle;
+
+    if (offer != null) {
+      offerId = offer.id;
+      final data = offer.data() as Map<String, dynamic>;
+      offerTitle = data['title'] ?? '';
+    } else if (_selectedOffer != null) {
+      offerId = _selectedOffer!['id'] ?? '';
+      offerTitle = _selectedOffer!['title'] ?? '';
+    } else {
+      return;
+    }
+
+    if (_appliedOfferIds.contains(offerId)) return;
+
+    setState(() => _isLoading = true);
+    try {
+      if (offerId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Impossible de postuler à cette offre')),
+          );
+        }
+        return;
+      }
+
+      final idToken = await auth.currentUser?.getIdToken();
+
+      final response = await http.post(
+        Uri.parse('http://192.168.174.89/VERA/apply.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'offerId': offerId,
+          'userId': userSession.userId,
+          'idToken': idToken,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        setState(() => _appliedOfferIds.add(offerId));
+        if (mounted) {
+          final notificationTitle =
+              automatic ? 'Candidature automatique envoyee' : 'Candidature envoyee';
+          final notificationBody = automatic
+              ? 'Vous avez postule automatiquement a $offerTitle'
+              : 'Vous avez postule a $offerTitle';
+          try {
+            await _saveUserNotification(
+              title: notificationTitle,
+              body: notificationBody,
+              offerId: offerId,
+              offerTitle: offerTitle,
+              automatic: automatic,
+            );
+          } catch (e) {}
+          await _showNotification(
+            notificationTitle,
+            notificationBody,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(data['message'] ?? 'Candidature envoyée')),
+          );
+          if (offer == null) {
+            setState(() => _selectedOffer = null);
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(data['message'] ?? 'Erreur lors de la candidature')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (automatic) {
+        _pendingAutoApplyOfferIds.remove(offerId);
+      }
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -157,6 +327,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             _diplomas.addAll(List<String>.from(data['diplomas']));
           }
           _profilePhotoUrl = data['profilePhotoUrl'];
+          _autoApplyEnabled = data['autoApply'] ?? false;
         });
       }
     } catch (e) {}
@@ -389,6 +560,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         'workMode': _selectedWorkMode,
         'about': _aboutController.text,
         'diplomas': _diplomas,
+        'autoApply': _autoApplyEnabled,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -648,11 +820,185 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           );
         }
 
+        _queueAutoApplications(filteredOffers);
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: filteredOffers.length,
           itemBuilder: (context, index) =>
               _buildJobOfferCard(filteredOffers[index]),
+        );
+      },
+    );
+  }
+
+  String _extractOfferEmail(Map<String, dynamic> data) {
+    final emailPattern = RegExp(
+      r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',
+      caseSensitive: false,
+    );
+    final values = [
+      data['contactEmail'],
+      data['description'],
+      data['title'],
+      data['company'],
+      data['source'],
+      data['url'],
+    ];
+    for (final value in values) {
+      final match = emailPattern.firstMatch((value ?? '').toString());
+      if (match != null) {
+        return match.group(0) ?? '';
+      }
+    }
+    return '';
+  }
+
+  void _queueAutoApplications(List<QueryDocumentSnapshot> offers) {
+    if (!_autoApplyEnabled || _isLoading) return;
+    for (final doc in offers) {
+      final data = doc.data() as Map<String, dynamic>;
+      final contactEmail = _extractOfferEmail(data);
+      if (contactEmail.isEmpty ||
+          _appliedOfferIds.contains(doc.id) ||
+          _pendingAutoApplyOfferIds.contains(doc.id)) {
+        continue;
+      }
+      _pendingAutoApplyOfferIds.add(doc.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_autoApplyEnabled || _appliedOfferIds.contains(doc.id)) {
+          _pendingAutoApplyOfferIds.remove(doc.id);
+          return;
+        }
+        _applyToOffer(doc, true);
+      });
+    }
+  }
+
+  Widget _buildNotificationButton() {
+    if (userSession.userId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final unreadStream = firestore
+        .collection('jobseeker_notifications')
+        .where('userId', isEqualTo: userSession.userId)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: unreadStream,
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data?.docs
+                .where((doc) => (doc.data() as Map<String, dynamic>)['read'] == false)
+                .length ??
+            0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed: _openNotificationsSheet,
+              icon: const Icon(Icons.notifications_outlined),
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  child: Text(
+                    unreadCount > 9 ? '9+' : '$unreadCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _openNotificationsSheet() {
+    _markNotificationsAsRead();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final notificationsStream = firestore
+            .collection('jobseeker_notifications')
+            .where('userId', isEqualTo: userSession.userId)
+            .snapshots();
+
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.65,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Notifications',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: notificationsStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final notifications = [...snapshot.data?.docs ?? []];
+                      notifications.sort((a, b) {
+                        final aData = a.data() as Map<String, dynamic>;
+                        final bData = b.data() as Map<String, dynamic>;
+                        final aDate = aData['createdAt'] as Timestamp?;
+                        final bDate = bData['createdAt'] as Timestamp?;
+                        return (bDate?.toDate() ?? DateTime(1970))
+                            .compareTo(aDate?.toDate() ?? DateTime(1970));
+                      });
+                      final visibleNotifications = notifications.take(30).toList();
+                      if (notifications.isEmpty) {
+                        return const Center(
+                          child: Text('Aucune notification pour le moment'),
+                        );
+                      }
+                      return ListView.separated(
+                        itemCount: visibleNotifications.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final data = visibleNotifications[index].data()
+                              as Map<String, dynamic>;
+                          return ListTile(
+                            leading: Icon(
+                              data['automatic'] == true
+                                  ? Icons.flash_on
+                                  : Icons.send_outlined,
+                              color: const Color(0xFF4CAF50),
+                            ),
+                            title: Text(data['title'] ?? 'Candidature envoyee'),
+                            subtitle: Text(data['body'] ?? ''),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -705,6 +1051,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ),
       ),
       actions: [
+        _buildNotificationButton(),
         IconButton(
           onPressed: () {
             showDialog(
@@ -738,6 +1085,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             );
           },
           icon: const Icon(Icons.logout),
+        ),
+        Switch(
+          value: _autoApplyEnabled,
+          onChanged: (value) {
+            setState(() {
+              _autoApplyEnabled = value;
+            });
+            firestore
+                .collection('jobseekers')
+                .doc(userSession.userId ?? '')
+                .set({'autoApply': value}, SetOptions(merge: true));
+          },
+          activeColor: Colors.white,
+          activeTrackColor: Colors.white.withOpacity(0.3),
         ),
       ],
     );
@@ -987,6 +1348,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
                 TextButton(
                   onPressed: () {
+                    if (data != null) {
+                      setState(() => _selectedOffer = {
+                        'id': offer.id,
+                        ...Map<String, dynamic>.from(data!),
+                      });
+                    }
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -1065,10 +1432,26 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                               ),
                               const Divider(height: 1),
                               Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Fermer'),
+                                padding: const EdgeInsets.all(16),
+                                child: FilledButton.icon(
+                                  onPressed: _appliedOfferIds.contains(offer.id)
+                                      ? null
+                                      : () {
+                                          Navigator.pop(context);
+                                          if (data != null) {
+                                            setState(() => _selectedOffer = {
+                                              'id': offer.id,
+                                              ...Map<String, dynamic>.from(data),
+                                            });
+                                          }
+                                          _applyToOffer();
+                                        },
+                                  icon: const Icon(Icons.send),
+                                  label: Text(
+                                    _appliedOfferIds.contains(offer.id)
+                                        ? 'Deja postule'
+                                        : 'Postuler maintenant',
+                                  ),
                                 ),
                               ),
                             ],
@@ -2351,6 +2734,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final _descriptionController = TextEditingController();
   final _salaryController = TextEditingController();
   final _skillsController = TextEditingController();
+  final _contactEmailController = TextEditingController();
 
   final _siteNameController = TextEditingController();
   final _siteUrlController = TextEditingController();
@@ -2384,6 +2768,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _descriptionController.dispose();
     _salaryController.dispose();
     _skillsController.dispose();
+    _contactEmailController.dispose();
     _siteNameController.dispose();
     _siteUrlController.dispose();
     _selectorNameController.dispose();
@@ -2486,6 +2871,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         'logoUrl': _logoUrl,
         'createdAt': FieldValue.serverTimestamp(),
         'source': null,
+        'contactEmail': _contactEmailController.text.trim(),
       });
       if (mounted) {
         ScaffoldMessenger.of(
@@ -2515,6 +2901,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _salaryController.text = offer['salary'] ?? '';
       _contractType = offer['contract'] ?? '';
       _skillsController.text = (offer['skills'] as List?)?.join(',') ?? '';
+      _contactEmailController.text = offer['contactEmail'] ?? '';
       _expiryDate = offer['expiryDate'] != null
           ? DateTime.tryParse(offer['expiryDate'].toString())
           : null;
@@ -2542,6 +2929,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         'expiryDate': _expiryDate?.toIso8601String(),
         'logoUrl': _logoUrl,
         'source': null,
+        'contactEmail': _contactEmailController.text.trim(),
       });
       if (mounted) {
         ScaffoldMessenger.of(
@@ -2968,6 +3356,47 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     vertical: 14,
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _contactEmailController,
+                decoration: InputDecoration(
+                  labelText: 'Email de contact',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.email,
+                      size: 18,
+                      color: Color(0xFF4CAF50),
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF4CAF50),
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFFAFAFA),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 12),
               TextFormField(
