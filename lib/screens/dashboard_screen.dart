@@ -96,6 +96,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   int _currentIndex = 0;
   int _profilePageIndex = 0;
   final List<String> _diplomas = [];
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -623,13 +624,35 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           return const Center(child: CircularProgressIndicator());
         }
         final offers = snapshot.data?.docs ?? [];
-        if (offers.isEmpty) {
-          return const Center(child: Text('Aucune offre disponible'));
+
+        final query = _searchQuery.toLowerCase().trim();
+        final filteredOffers = query.isEmpty
+            ? offers
+            : offers.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final title = (data['title'] ?? '').toString().toLowerCase();
+                final description = (data['description'] ?? '').toString().toLowerCase();
+                final company = (data['company'] ?? '').toString().toLowerCase();
+                return title.contains(query) ||
+                    description.contains(query) ||
+                    company.contains(query);
+              }).toList();
+
+        if (filteredOffers.isEmpty) {
+          return Center(
+            child: Text(
+              query.isEmpty
+                  ? 'Aucune offre disponible'
+                  : 'Aucun résultat pour "$_searchQuery"',
+            ),
+          );
         }
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: offers.length,
-          itemBuilder: (context, index) => _buildJobOfferCard(offers[index]),
+          itemCount: filteredOffers.length,
+          itemBuilder: (context, index) =>
+              _buildJobOfferCard(filteredOffers[index]),
         );
       },
     );
@@ -637,9 +660,50 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   PreferredSizeWidget _buildEmployeeAppBar() {
     return AppBar(
-      title: const Text('Offres d\'emploi'),
       backgroundColor: const Color(0xFF4CAF50),
       foregroundColor: Colors.white,
+      titleSpacing: 16,
+      title: SizedBox(
+        width: double.infinity,
+        child: TextField(
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value;
+            });
+          },
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Rechercher par titre, description, entreprise...',
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+            prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.9), size: 20),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                    icon: Icon(Icons.clear, color: Colors.white.withOpacity(0.9), size: 20),
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.2),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.white, width: 1),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+          ),
+        ),
+      ),
       actions: [
         IconButton(
           onPressed: () {
