@@ -10,7 +10,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../auth_service.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -477,87 +479,218 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Future<void> _generateCV() async {
-    final name = '${_firstNameController.text} ${_lastNameController.text}'.trim();
-    final email = _emailController.text;
-    final phone = _phoneController.text;
-    final city = _cityController.text;
-    final country = _countryController.text;
-    final maritalStatus = _selectedMaritalStatus ?? 'Non renseigné';
-    final childrenCount = _childrenCountController.text.isEmpty ? '0' : _childrenCountController.text;
-    final experienceYears = _experienceYearsController.text;
-    final experienceMonths = _experienceMonthsController.text;
-    final currentPosition = _currentPositionController.text;
-    final currentSalary = _currentSalaryController.text;
-    final contractType = _selectedContractType ?? 'Non renseigné';
-    final availability = _availabilityController.text;
-    final desiredSalary = _desiredSalaryController.text;
-    final workMode = _selectedWorkMode ?? 'Non renseigné';
-    final about = _aboutController.text;
-    final languages = _languages.map((l) => l['name'] ?? '').join(', ');
-    final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
-    final diplomas = _diplomas.join('\n');
+    setState(() => _isLoading = true);
+    try {
+      final name = '${_firstNameController.text} ${_lastNameController.text}'.trim();
+      final email = _emailController.text;
+      final phone = _phoneController.text;
+      final city = _cityController.text;
+      final country = _countryController.text;
+      final maritalStatus = _selectedMaritalStatus ?? 'Non renseigné';
+      final childrenCount = _childrenCountController.text.isEmpty ? '0' : _childrenCountController.text;
+      final experienceYears = _experienceYearsController.text;
+      final experienceMonths = _experienceMonthsController.text;
+      final currentPosition = _currentPositionController.text;
+      final currentSalary = _currentSalaryController.text;
+      final contractType = _selectedContractType ?? 'Non renseigné';
+      final availability = _availabilityController.text;
+      final desiredSalary = _desiredSalaryController.text;
+      final workMode = _selectedWorkMode ?? 'Non renseigné';
+      final about = _aboutController.text;
+      final languages = _languages.map((l) => l['name'] ?? '').join(', ');
+      final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
+      final diplomas = _diplomas.join('\n');
 
-    final cvContent = StringBuffer();
-    cvContent.writeln('CURRICULUM VITAE');
-    cvContent.writeln('================');
-    cvContent.writeln();
-    cvContent.writeln('INFORMATIONS PERSONNELLES');
-    cvContent.writeln('Nom: $name');
-    if (email.isNotEmpty) cvContent.writeln('Email: $email');
-    if (phone.isNotEmpty) cvContent.writeln('Téléphone: $phone');
-    if (city.isNotEmpty) cvContent.writeln('Ville: $city');
-    if (country.isNotEmpty) cvContent.writeln('Pays: $country');
-    cvContent.writeln('Situation familiale: $maritalStatus');
-    cvContent.writeln('Enfants: $childrenCount');
-    cvContent.writeln();
-    cvContent.writeln('EXPÉRIENCE PROFESSIONNELLE');
-    if (currentPosition.isNotEmpty) cvContent.writeln('Poste actuel: $currentPosition');
-    cvContent.writeln('Expérience: $experienceYears ans, $experienceMonths mois');
-    if (currentSalary.isNotEmpty) cvContent.writeln('Salaire actuel: $currentSalary');
-    cvContent.writeln('Type de contrat: $contractType');
-    if (availability.isNotEmpty) cvContent.writeln('Disponibilité: $availability');
-    cvContent.writeln();
-    cvContent.writeln('PRÉFÉRENCES');
-    if (desiredSalary.isNotEmpty) cvContent.writeln('Salaire souhaité: $desiredSalary');
-    cvContent.writeln('Mode de travail: $workMode');
-    cvContent.writeln();
-    cvContent.writeln('FORMATIONS & DIPLÔMES');
-    if (diplomas.isNotEmpty) cvContent.writeln(diplomas);
-    cvContent.writeln();
-    cvContent.writeln('COMPÉTENCES');
-    if (languages.isNotEmpty) cvContent.writeln('Langues: $languages');
-    if (hobbies.isNotEmpty) cvContent.writeln('Loisirs: $hobbies');
-    cvContent.writeln();
-    cvContent.writeln('À PROPOS');
-    if (about.isNotEmpty) cvContent.writeln(about);
+      final pdf = pw.Document();
 
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Mon CV'),
-          content: SingleChildScrollView(
-            child: SelectableText(
-              cvContent.toString(),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Fermer'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Share.share(cvContent.toString(), subject: 'Mon CV - $name');
-              },
-              icon: const Icon(Icons.share),
-              label: const Text('Partager'),
-            ),
-          ],
+      pw.MemoryImage? profileImage;
+      if (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(_profilePhotoUrl!));
+          if (response.statusCode == 200) {
+            profileImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {}
+      }
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    if (profileImage != null)
+                      pw.Container(
+                        width: 90,
+                        height: 90,
+                        decoration: const pw.BoxDecoration(
+                          shape: pw.BoxShape.circle,
+                        ),
+                        child: pw.ClipOval(
+                          child: pw.Image(profileImage, width: 90, height: 90, fit: pw.BoxFit.cover),
+                        ),
+                      )
+                    else
+                      pw.Container(
+                        width: 90,
+                        height: 90,
+                        decoration: const pw.BoxDecoration(
+                          shape: pw.BoxShape.circle,
+                          color: PdfColor(0.9, 0.9, 0.9),
+                        ),
+                        child: pw.Center(
+                          child: pw.Text('?', style: pw.TextStyle(fontSize: 32, color: PdfColor(0.5, 0.5, 0.5))),
+                        ),
+                      ),
+                    pw.SizedBox(width: 24),
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            name.isEmpty ? 'Candidat' : name,
+                            style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: PdfColor(0.13, 0.13, 0.13)),
+                          ),
+                          if (email.isNotEmpty) pw.Text(email, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                          if (phone.isNotEmpty) pw.Text(phone, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                          if (city.isNotEmpty || country.isNotEmpty)
+                            pw.Text('$city, $country', style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 24),
+                pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 2),
+                pw.SizedBox(height: 16),
+                _buildPdfSection(title: 'INFORMATIONS PERSONNELLES', children: [
+                  _buildPdfRow('Situation familiale', maritalStatus),
+                  _buildPdfRow('Enfants', childrenCount),
+                ]),
+                _buildPdfSection(title: 'EXPÉRIENCE PROFESSIONNELLE', children: [
+                  if (currentPosition.isNotEmpty) _buildPdfRow('Poste actuel', currentPosition),
+                  _buildPdfRow('Expérience', '$experienceYears ans, $experienceMonths mois'),
+                  if (currentSalary.isNotEmpty) _buildPdfRow('Salaire actuel', currentSalary),
+                  _buildPdfRow('Type de contrat', contractType),
+                  if (availability.isNotEmpty) _buildPdfRow('Disponibilité', availability),
+                ]),
+                _buildPdfSection(title: 'FORMATIONS & DIPLÔMES', children: [
+                  if (diplomas.isNotEmpty)
+                    pw.Text(diplomas, style: pw.TextStyle(fontSize: 11))
+                  else
+                    pw.Text('Aucun diplôme renseigné', style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+                ]),
+                _buildPdfSection(title: 'LANGUES & LOISIRS', children: [
+                  if (languages.isNotEmpty) _buildPdfRow('Langues', languages),
+                  if (hobbies.isNotEmpty) _buildPdfRow('Loisirs', hobbies),
+                ]),
+                _buildPdfSection(title: 'PRÉFÉRENCES', children: [
+                  if (desiredSalary.isNotEmpty) _buildPdfRow('Salaire souhaité', desiredSalary),
+                  _buildPdfRow('Mode de travail', workMode),
+                ]),
+                if (about.isNotEmpty)
+                  _buildPdfSection(title: 'À PROPOS', children: [
+                    pw.Text(about, style: pw.TextStyle(fontSize: 11)),
+                  ]),
+              ],
+            );
+          },
         ),
       );
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Mon CV'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 450,
+              child: PdfPreview(
+                build: (PdfPageFormat format) => pdf.save(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final bytes = await pdf.save();
+                  Printing.sharePdf(
+                    bytes: bytes,
+                    filename: 'cv_${name.replaceAll(' ', '_').toLowerCase()}.pdf',
+                  );
+                },
+                icon: const Icon(Icons.share),
+                label: const Text('Partager PDF'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur génération PDF: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  pw.Widget _buildPdfSection({required String title, required List<pw.Widget> children}) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: PdfColor(0.91, 0.96, 0.93),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            title,
+            style: pw.TextStyle(
+              fontSize: 13,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor(0.3, 0.69, 0.31),
+            ),
+          ),
+          pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 1, height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 130,
+            child: pw.Text(
+              '$label :',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(value, style: pw.TextStyle(fontSize: 11)),
+          ),
+        ],
+      ),
+    );
   }
 
   int _calculateProfileSectionCompletion() {
