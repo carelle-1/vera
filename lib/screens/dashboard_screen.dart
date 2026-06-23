@@ -99,7 +99,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   int _currentIndex = 0;
   int _profilePageIndex = 0;
-  final List<String> _diplomas = [];
+  final List<Map<String, dynamic>> _diplomas = [];
   String _searchQuery = '';
   Map<String, dynamic>? _selectedOffer;
   bool _autoApplyEnabled = false;
@@ -381,7 +381,13 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           _aboutController.text = data['about'] ?? '';
           if (data['diplomas'] != null) {
             _diplomas.clear();
-            _diplomas.addAll(List<String>.from(data['diplomas']));
+            _diplomas.addAll(
+              List<Map<String, dynamic>>.from(
+                (data['diplomas'] as List).map(
+                  (e) => Map<String, dynamic>.from(e),
+                ),
+              ),
+            );
           }
           _profilePhotoUrl = data['profilePhotoUrl'];
           _autoApplyEnabled = data['autoApply'] ?? false;
@@ -499,7 +505,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       final about = _aboutController.text;
       final languages = _languages.map((l) => l['name'] ?? '').join(', ');
       final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
-      final diplomas = _diplomas.join('\n');
+      final diplomas = _diplomas.map((d) {
+        final name = d['name'] ?? '';
+        final date = d['date'] ?? '';
+        final school = d['school'] ?? '';
+        final parts = [name];
+        if (date.isNotEmpty) parts.add('($date)');
+        if (school.isNotEmpty) parts.add('- $school');
+        return parts.join(' ');
+      }).join('\n');
 
       final pdf = pw.Document();
 
@@ -911,12 +925,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         if (response.statusCode == 200) {
           final data = jsonDecode(respStr);
           if (data['secure_url'] != null) {
-            setState(() {
-              _diplomas.add(data['secure_url']);
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Diplôme uploadé avec succès')),
-            );
+            await _showDiplomaFormDialog(url: data['secure_url']);
           }
         } else {
           if (mounted) {
@@ -937,6 +946,100 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         if (mounted) setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _showDiplomaFormDialog({int? index, String? url}) async {
+    final isEdit = index != null && url == null;
+    final existing = isEdit ? _diplomas[index] : null;
+    final nameController = TextEditingController(text: existing?['name'] ?? '');
+    final dateController = TextEditingController(text: existing?['date'] ?? '');
+    final schoolController = TextEditingController(text: existing?['school'] ?? '');
+
+    if (!mounted) return;
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEdit ? 'Modifier le diplôme' : 'Ajouter un diplôme'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom du diplôme',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: dateController,
+                decoration: const InputDecoration(
+                  labelText: 'Date d\'obtention',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: schoolController,
+                decoration: const InputDecoration(
+                  labelText: 'École / Lycée / Collège',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              final date = dateController.text.trim();
+              final school = schoolController.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Veuillez saisir le nom du diplôme')),
+                );
+                return;
+              }
+              Navigator.pop(context, {
+                'url': url ?? existing?['url'] ?? '',
+                'name': name,
+                'date': date,
+                'school': school,
+              });
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+    setState(() {
+      if (isEdit) {
+        _diplomas[index] = result;
+      } else {
+        _diplomas.add(result);
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Diplôme enregistré avec succès')),
+      );
+    }
+  }
+
+  void _editDiploma(int index) {
+    _showDiplomaFormDialog(index: index);
+  }
+
+  void _removeDiploma(int index) {
+    setState(() => _diplomas.removeAt(index));
   }
 
   Widget _buildProfileHeader() {
@@ -1407,77 +1510,104 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildProfileView() {
-    return Column(
+    return Stack(
       children: [
-        _buildProfileHeader(),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              _buildProfileMenuItem(
-                icon: Icons.person,
-                label: 'Informations personnelles',
-                onTap: () => _openProfileSheet(
-                  title: 'Informations personnelles',
-                  child: _buildPersonalTab(),
-                ),
+        Column(
+          children: [
+            _buildProfileHeader(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  _buildProfileMenuItem(
+                    icon: Icons.person,
+                    label: 'Informations personnelles',
+                    onTap: () => _openProfileSheet(
+                      title: 'Informations personnelles',
+                      child: _buildPersonalTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.family_restroom,
+                    label: 'Situation familiale',
+                    onTap: () => _openProfileSheet(
+                      title: 'Situation familiale',
+                      child: _buildFamilyTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.school,
+                    label: 'Formations & Diplômes',
+                    onTap: () => _openProfileSheet(
+                      title: 'Formations & Diplômes',
+                      child: _buildEducationTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.work,
+                    label: 'Expérience professionnelle',
+                    onTap: () => _openProfileSheet(
+                      title: 'Expérience professionnelle',
+                      child: _buildExperienceTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.language,
+                    label: 'Langues & Loisirs',
+                    onTap: () => _openProfileSheet(
+                      title: 'Langues & Loisirs',
+                      child: _buildLanguagesTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.tune,
+                    label: 'Préférences',
+                    onTap: () => _openProfileSheet(
+                      title: 'Préférences',
+                      child: _buildPreferencesTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.info,
+                    label: 'À propos de moi',
+                    onTap: () => _openProfileSheet(
+                      title: 'À propos de moi',
+                      child: _buildAboutTab(),
+                    ),
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.picture_as_pdf,
+                    label: 'Générer mon CV',
+                    onTap: _generateCV,
+                  ),
+                ],
               ),
-              _buildProfileMenuItem(
-                icon: Icons.family_restroom,
-                label: 'Situation familiale',
-                onTap: () => _openProfileSheet(
-                  title: 'Situation familiale',
-                  child: _buildFamilyTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.school,
-                label: 'Formations & Diplômes',
-                onTap: () => _openProfileSheet(
-                  title: 'Formations & Diplômes',
-                  child: _buildEducationTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.work,
-                label: 'Expérience professionnelle',
-                onTap: () => _openProfileSheet(
-                  title: 'Expérience professionnelle',
-                  child: _buildExperienceTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.language,
-                label: 'Langues & Loisirs',
-                onTap: () => _openProfileSheet(
-                  title: 'Langues & Loisirs',
-                  child: _buildLanguagesTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.tune,
-                label: 'Préférences',
-                onTap: () => _openProfileSheet(
-                  title: 'Préférences',
-                  child: _buildPreferencesTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.info,
-                label: 'À propos de moi',
-                onTap: () => _openProfileSheet(
-                  title: 'À propos de moi',
-                  child: _buildAboutTab(),
-                ),
-              ),
-              _buildProfileMenuItem(
-                icon: Icons.picture_as_pdf,
-                label: 'Générer mon CV',
-                onTap: _generateCV,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+        if (_isLoading)
+          Container(
+            color: Colors.white.withOpacity(0.7),
+            child: const Center(
+              child: Card(
+                elevation: 8,
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Génération du CV...',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -2158,69 +2288,115 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           else
             ...List.generate(
               _diplomas.length,
-              (index) => Card(
-                child: ListTile(
-                  leading: _diplomas[index].toLowerCase().contains('.pdf')
-                      ? const Icon(
-                          Icons.picture_as_pdf,
-                          color: Color(0xFF4CAF50),
-                          size: 40,
-                        )
-                      : SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: CachedNetworkImage(
-                            imageUrl: _diplomas[index],
-                            placeholder: (context, url) =>
-                                const CircularProgressIndicator(),
-                            errorWidget: (context, url, error) =>
-                                const Icon(Icons.error),
-                            fit: BoxFit.cover,
-                          ),
+              (index) {
+                final diploma = _diplomas[index];
+                final url = diploma['url'] ?? '';
+                final name = diploma['name'] ?? 'Diplôme ${index + 1}';
+                final date = diploma['date'] ?? '';
+                final school = diploma['school'] ?? '';
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            url.toLowerCase().contains('.pdf')
+                                ? const Icon(
+                                    Icons.picture_as_pdf,
+                                    color: Color(0xFF4CAF50),
+                                    size: 40,
+                                  )
+                                : SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: CachedNetworkImage(
+                                      imageUrl: url,
+                                      placeholder: (context, url) =>
+                                          const CircularProgressIndicator(),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(Icons.error),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (date.isNotEmpty)
+                                    Text(
+                                      'Obtenu en $date',
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  if (school.isNotEmpty)
+                                    Text(
+                                      school,
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                  title: Text(
-                    'Diplôme ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () async {
+                                final uri = Uri.parse(url);
+                                try {
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Erreur: ${e.toString()}'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.visibility, size: 18),
+                              label: const Text('Voir'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _editDiploma(index),
+                              icon: const Icon(Icons.edit, size: 18),
+                              label: const Text('Modifier'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _removeDiploma(index),
+                              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                              label: const Text('Supprimer'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  subtitle: Text(
-                    _diplomas[index].toLowerCase().contains('.pdf')
-                        ? 'PDF'
-                        : 'Image',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.visibility, color: Colors.blue),
-                        onPressed: () async {
-                          final url = _diplomas[index];
-                          final uri = Uri.parse(url);
-                          try {
-                            await launchUrl(
-                              uri,
-                              mode: LaunchMode.externalApplication,
-                            );
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Erreur: ${e.toString()}'),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () =>
-                            setState(() => _diplomas.removeAt(index)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                );
+              },
             ),
           const SizedBox(height: 24),
           ElevatedButton(
