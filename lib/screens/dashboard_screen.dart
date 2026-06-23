@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:share_plus/share_plus.dart';
 import '../auth_service.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -187,14 +188,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   Future<void> _applyToOffer([QueryDocumentSnapshot? offer, bool automatic = false]) async {
     String offerId;
     String offerTitle;
+    String contactEmail = '';
 
     if (offer != null) {
       offerId = offer.id;
       final data = offer.data() as Map<String, dynamic>;
       offerTitle = data['title'] ?? '';
+      contactEmail = _extractOfferEmail(data);
     } else if (_selectedOffer != null) {
       offerId = _selectedOffer!['id'] ?? '';
       offerTitle = _selectedOffer!['title'] ?? '';
+      contactEmail = _extractOfferEmail(_selectedOffer!);
     } else {
       return;
     }
@@ -208,21 +212,72 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Impossible de postuler à cette offre')),
           );
+          setState(() => _isLoading = false);
         }
         return;
       }
 
       final idToken = await auth.currentUser?.getIdToken();
+      if (idToken == null || idToken.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Utilisateur non authentifié')),
+          );
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      // Sauvegarder la candidature dans Firestore
+      final applicationRef = firestore
+          .collection('applications')
+          .doc('${userSession.userId}_$offerId${DateTime.now().millisecondsSinceEpoch}');
+      await applicationRef.set({
+        'userId': userSession.userId,
+        'offerId': offerId,
+        'offerTitle': offerTitle,
+        'userName': '${_firstNameController.text} ${_lastNameController.text}',
+        'userEmail': _emailController.text,
+        'contactEmail': contactEmail,
+        'status': contactEmail.isNotEmpty ? 'sent' : 'pending',
+        'appliedAt': FieldValue.serverTimestamp(),
+      });
 
       final response = await http.post(
-        Uri.parse('http://192.168.174.89/VERA/apply.php'),
+        Uri.parse('http://192.168.189.89/VERA/apply.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'offerId': offerId,
           'userId': userSession.userId,
           'idToken': idToken,
+          'firstName': _firstNameController.text,
+          'lastName': _lastNameController.text,
+          'email': _emailController.text,
+          'phone': _phoneController.text,
+          'city': _cityController.text,
+          'country': _countryController.text,
+          'about': _aboutController.text,
+          'desiredSalary': _desiredSalaryController.text,
+          'workMode': _selectedWorkMode ?? '',
+          'experienceYears': _experienceYearsController.text,
+          'experienceMonths': _experienceMonthsController.text,
+          'diplomas': _diplomas,
+          'title': offerTitle,
+          'contactEmail': contactEmail,
         }),
       );
+
+      if (response.statusCode != 200) {
+        if (automatic) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Erreur serveur - offre ignorée')),
+            );
+          }
+        }
+        setState(() => _appliedOfferIds.add(offerId));
+        return;
+      }
 
       final data = jsonDecode(response.body);
       if (data['success'] == true) {
@@ -419,6 +474,90 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           .doc(userSession.userId ?? '')
           .set({'profilePhotoUrl': _profilePhotoUrl}, SetOptions(merge: true));
     } catch (e) {}
+  }
+
+  Future<void> _generateCV() async {
+    final name = '${_firstNameController.text} ${_lastNameController.text}'.trim();
+    final email = _emailController.text;
+    final phone = _phoneController.text;
+    final city = _cityController.text;
+    final country = _countryController.text;
+    final maritalStatus = _selectedMaritalStatus ?? 'Non renseigné';
+    final childrenCount = _childrenCountController.text.isEmpty ? '0' : _childrenCountController.text;
+    final experienceYears = _experienceYearsController.text;
+    final experienceMonths = _experienceMonthsController.text;
+    final currentPosition = _currentPositionController.text;
+    final currentSalary = _currentSalaryController.text;
+    final contractType = _selectedContractType ?? 'Non renseigné';
+    final availability = _availabilityController.text;
+    final desiredSalary = _desiredSalaryController.text;
+    final workMode = _selectedWorkMode ?? 'Non renseigné';
+    final about = _aboutController.text;
+    final languages = _languages.map((l) => l['name'] ?? '').join(', ');
+    final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
+    final diplomas = _diplomas.join('\n');
+
+    final cvContent = StringBuffer();
+    cvContent.writeln('CURRICULUM VITAE');
+    cvContent.writeln('================');
+    cvContent.writeln();
+    cvContent.writeln('INFORMATIONS PERSONNELLES');
+    cvContent.writeln('Nom: $name');
+    if (email.isNotEmpty) cvContent.writeln('Email: $email');
+    if (phone.isNotEmpty) cvContent.writeln('Téléphone: $phone');
+    if (city.isNotEmpty) cvContent.writeln('Ville: $city');
+    if (country.isNotEmpty) cvContent.writeln('Pays: $country');
+    cvContent.writeln('Situation familiale: $maritalStatus');
+    cvContent.writeln('Enfants: $childrenCount');
+    cvContent.writeln();
+    cvContent.writeln('EXPÉRIENCE PROFESSIONNELLE');
+    if (currentPosition.isNotEmpty) cvContent.writeln('Poste actuel: $currentPosition');
+    cvContent.writeln('Expérience: $experienceYears ans, $experienceMonths mois');
+    if (currentSalary.isNotEmpty) cvContent.writeln('Salaire actuel: $currentSalary');
+    cvContent.writeln('Type de contrat: $contractType');
+    if (availability.isNotEmpty) cvContent.writeln('Disponibilité: $availability');
+    cvContent.writeln();
+    cvContent.writeln('PRÉFÉRENCES');
+    if (desiredSalary.isNotEmpty) cvContent.writeln('Salaire souhaité: $desiredSalary');
+    cvContent.writeln('Mode de travail: $workMode');
+    cvContent.writeln();
+    cvContent.writeln('FORMATIONS & DIPLÔMES');
+    if (diplomas.isNotEmpty) cvContent.writeln(diplomas);
+    cvContent.writeln();
+    cvContent.writeln('COMPÉTENCES');
+    if (languages.isNotEmpty) cvContent.writeln('Langues: $languages');
+    if (hobbies.isNotEmpty) cvContent.writeln('Loisirs: $hobbies');
+    cvContent.writeln();
+    cvContent.writeln('À PROPOS');
+    if (about.isNotEmpty) cvContent.writeln(about);
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Mon CV'),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              cvContent.toString(),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Share.share(cvContent.toString(), subject: 'Mon CV - $name');
+              },
+              icon: const Icon(Icons.share),
+              label: const Text('Partager'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   int _calculateProfileSectionCompletion() {
@@ -822,12 +961,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
         _queueAutoApplications(filteredOffers);
 
+         if (!mounted) return const SizedBox.shrink();
+
         return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: filteredOffers.length,
-          itemBuilder: (context, index) =>
-              _buildJobOfferCard(filteredOffers[index]),
-        );
+           padding: const EdgeInsets.symmetric(vertical: 8),
+           itemCount: filteredOffers.length,
+           itemBuilder: (context, index) =>
+               _buildJobOfferCard(filteredOffers[index]),
+           physics: const AlwaysScrollableScrollPhysics(),
+         );
       },
     );
   }
@@ -854,23 +996,31 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return '';
   }
 
+  bool _hasQueuedAutoApps = false;
+
   void _queueAutoApplications(List<QueryDocumentSnapshot> offers) {
-    if (!_autoApplyEnabled || _isLoading) return;
+    if (!_autoApplyEnabled || _isLoading || offers.isEmpty) return;
+    if (!_hasQueuedAutoApps) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _autoApplyEnabled) {
+          _processAutoApplications(offers);
+          _hasQueuedAutoApps = true;
+        }
+      });
+    }
+  }
+
+  void _processAutoApplications(List<QueryDocumentSnapshot> offers) {
     for (final doc in offers) {
-      final data = doc.data() as Map<String, dynamic>;
-      final contactEmail = _extractOfferEmail(data);
-      if (contactEmail.isEmpty ||
-          _appliedOfferIds.contains(doc.id) ||
+      if (_appliedOfferIds.contains(doc.id) ||
           _pendingAutoApplyOfferIds.contains(doc.id)) {
         continue;
       }
       _pendingAutoApplyOfferIds.add(doc.id);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_autoApplyEnabled || _appliedOfferIds.contains(doc.id)) {
-          _pendingAutoApplyOfferIds.remove(doc.id);
-          return;
+      Future.microtask(() {
+        if (mounted && _autoApplyEnabled && !_appliedOfferIds.contains(doc.id)) {
+          _applyToOffer(doc, true);
         }
-        _applyToOffer(doc, true);
       });
     }
   }
@@ -1186,6 +1336,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                   title: 'À propos de moi',
                   child: _buildAboutTab(),
                 ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.picture_as_pdf,
+                label: 'Générer mon CV',
+                onTap: _generateCV,
               ),
             ],
           ),

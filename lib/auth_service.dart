@@ -107,6 +107,15 @@ class UserSession extends ChangeNotifier {
       }
     }
   }
+
+  Future<void> saveFCMToken(String token) async {
+    if (_userId != null) {
+      await firestore.collection('users').doc(_userId).set({
+        'fcmToken': token,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
 }
 
 final userSession = UserSession();
