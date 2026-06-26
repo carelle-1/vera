@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 import 'screens/login_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'screens/dashboard_screen.dart';
 
 Future<void> main() async {
@@ -53,6 +55,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   late VoidCallback _listener;
+  bool _showWelcome = true;
 
   @override
   void initState() {
@@ -61,6 +64,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (mounted) setState(() {});
     };
     userSession.addListener(_listener);
+    _checkWelcomeSeen();
+  }
+
+  Future<void> _checkWelcomeSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('welcome_seen') ?? false;
+    if (mounted) {
+      setState(() {
+        _showWelcome = !seen;
+      });
+    }
   }
 
   @override
@@ -73,6 +87,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (userSession.isLoggedIn) {
       return const DashboardScreen();
+    }
+    if (_showWelcome) {
+      return const WelcomeScreen();
     }
     return const LoginScreen();
   }

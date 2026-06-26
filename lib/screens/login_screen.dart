@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../auth_service.dart';
 import 'register_screen.dart';
+import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -71,6 +72,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                      ),
+                    ),
                     const SizedBox(height: 60),
                     Image.asset(
                       'assets/vera.png',
