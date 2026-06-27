@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart' as phicons;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -1471,21 +1472,225 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  Widget _buildHomeView() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore
+          .collection('job_offers')
+          .orderBy('createdAt', descending: true)
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final offers = snapshot.data?.docs ?? [];
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Bienvenue sur VERA',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_firstNameController.text} ${_lastNameController.text}',
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Offres récentes',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              if (offers.isEmpty)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(phicons.PhosphorIconsRegular.info),
+                    title: Text('Aucune offre disponible'),
+                  ),
+                )
+              else
+                ...List.generate(offers.length, (index) {
+                  final data = offers[index].data() as Map<String, dynamic>;
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListTile(
+                      leading: Icon(phicons.PhosphorIconsRegular.briefcase, color: Color(0xFF4CAF50)),
+                      title: Text(data['title'] ?? 'Sans titre', style: const TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: Text('${data['company'] ?? ''} - ${data['city'] ?? ''}'),
+                      trailing: Icon(phicons.PhosphorIconsRegular.caretRight),
+                      onTap: () {
+                        setState(() => _selectedOffer = {
+                          'id': offers[index].id,
+                          ...Map<String, dynamic>.from(data),
+                        });
+                      },
+                    ),
+                  );
+                }),
+              const SizedBox(height: 24),
+              Card(
+                color: const Color(0xFFE8F5E9),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Mon profil',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 12),
+                      LinearProgressIndicator(
+                        value: _calculateProfileCompletion() / 100,
+                        backgroundColor: Colors.white,
+                        color: const Color(0xFF4CAF50),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('${_calculateProfileCompletion()}% complété'),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () => setState(() => _currentIndex = 4),
+                        icon: Icon(phicons.PhosphorIconsRegular.pen),
+                        label: const Text('Compléter mon profil'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMessagesView() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore
+          .collection('messages')
+          .where('participants', arrayContains: userSession.userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final messages = snapshot.data?.docs ?? [];
+        if (messages.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(phicons.PhosphorIconsRegular.chats, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Aucun message', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final data = messages[index].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: ListTile(
+                leading: Icon(phicons.PhosphorIconsRegular.chats, color: Color(0xFF4CAF50)),
+                title: Text(data['lastMessage'] ?? 'Message'),
+                subtitle: Text('De: ${data['senderName'] ?? ''}', style: const TextStyle(color: Colors.grey)),
+                trailing: Text(
+                  data['createdAt'] != null
+                      ? (data['createdAt'] as Timestamp)
+                          .toDate()
+                          .toString()
+                          .substring(0, 10)
+                      : '',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _currentIndex == 0 ? _buildEmployeeAppBar() : null,
-      body: _currentIndex == 0 ? _buildEmployeeBody() : _buildProfileView(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() {
-          _currentIndex = index;
-          if (index != 1) _profilePageIndex = 0;
-        }),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.work), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+      appBar: _currentIndex == 1 ? _buildEmployeeAppBar() : null,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildHomeView(),
+          _buildEmployeeBody(),
+          _buildApplicationsView(),
+          _buildMessagesView(),
+          _buildProfileView(),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        onPressed: () {
+          setState(() => _currentIndex = 4);
+        },
+        child: Icon(phicons.PhosphorIconsRegular.user),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        color: Colors.white,
+        notchMargin: 8,
+        elevation: 10,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              IconButton(
+                icon: Icon(
+                  phicons.PhosphorIconsRegular.house,
+                  color: _currentIndex == 0 ? const Color(0xFF4CAF50) : Colors.grey,
+                  size: 24,
+                ),
+                onPressed: () => setState(() => _currentIndex = 0),
+              ),
+              IconButton(
+                icon: Icon(
+                  phicons.PhosphorIconsRegular.briefcase,
+                  color: _currentIndex == 1 ? const Color(0xFF4CAF50) : Colors.grey,
+                  size: 24,
+                ),
+                onPressed: () => setState(() => _currentIndex = 1),
+              ),
+              const SizedBox(width: 40),
+              IconButton(
+                icon: Icon(
+                  phicons.PhosphorIconsRegular.paperPlane,
+                  color: _currentIndex == 2 ? const Color(0xFF4CAF50) : Colors.grey,
+                  size: 24,
+                ),
+                onPressed: () => setState(() => _currentIndex = 2),
+              ),
+              IconButton(
+                icon: Icon(
+                  phicons.PhosphorIconsRegular.chats,
+                  color: _currentIndex == 3 ? const Color(0xFF4CAF50) : Colors.grey,
+                  size: 24,
+                ),
+                onPressed: () => setState(() => _currentIndex = 3),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2933,6 +3138,68 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildApplicationsView() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore
+          .collection('applications')
+          .where('userId', isEqualTo: userSession.userId)
+          .orderBy('appliedAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final applications = snapshot.data?.docs ?? [];
+        if (applications.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.send_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Aucune candidature', style: TextStyle(color: Colors.grey)),
+                SizedBox(height: 8),
+                Text('Parcourez les offres et postulez', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: applications.length,
+          itemBuilder: (context, index) {
+            final data = applications[index].data() as Map<String, dynamic>;
+            final status = data['status'] ?? 'pending';
+            final statusColor = status == 'sent' 
+                ? Colors.green 
+                : status == 'accepted' 
+                    ? Colors.blue 
+                    : Colors.orange;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: ListTile(
+                leading: const Icon(Icons.work, color: Color(0xFF4CAF50)),
+                title: Text(data['offerTitle'] ?? 'Offre inconnue', style: const TextStyle(fontWeight: FontWeight.w500)),
+                subtitle: Text('Statut: ${status == 'sent' ? 'Envoyée' : status == 'accepted' ? 'Acceptée' : 'En attente'}'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    status == 'sent' ? 'Envoyée' : status == 'accepted' ? 'Acceptée' : 'En attente',
+                    style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
