@@ -83,6 +83,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   int _profilePageIndex = 0;
   final List<Map<String, dynamic>> _diplomas = [];
   String _searchQuery = '';
+  bool _showSearchBarHome = false;
   Map<String, dynamic>? _selectedOffer;
   bool _autoApplyEnabled = false;
   final Set<String> _appliedOfferIds = {};
@@ -1091,11 +1092,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ],
               ),
               const Spacer(),
-              SizedBox(
+SizedBox(
                 width: 150,
                 height: 150,
                 child: Stack(
-                  fit: StackFit.expand,
                   alignment: Alignment.center,
                   children: [
                     CustomPaint(
@@ -1103,31 +1103,29 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                         value: _calculateProfileCompletion() / 100,
                         progressColor: const Color(0xFF4CAF50),
                         backgroundColor: const Color(0xFFE8F5E9),
-                        strokeWidth: 6,
+                        strokeWidth: 8,
                       ),
                     ),
-                    Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'complété',
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 10,
-                            ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${_calculateProfileCompletion()}%',
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_calculateProfileCompletion()}%',
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'complété',
+                          style: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1472,6 +1470,100 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  PreferredSizeWidget _buildHomeAppBar() {
+    String greet = '';
+    final hour = DateTime.now().hour;
+    if (hour < 12) greet = 'Bonjour';
+    else if (hour < 18) greet = 'Bonjour';
+    else greet = 'Bonsoir';
+
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF87CEEB), Color(0xFF4CAF50)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
+      title: _showSearchBarHome
+          ? SizedBox(
+              width: double.infinity,
+              child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.2),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            )
+          : Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: _profilePhotoUrl != null
+                      ? NetworkImage(_profilePhotoUrl!)
+                      : const AssetImage('assets/vera.png') as ImageProvider,
+                  backgroundColor: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$greet, ${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications, color: Colors.white),
+          onPressed: () {
+            _markNotificationsAsRead();
+            _openNotificationsSheet();
+          },
+        ),
+        IconButton(
+          icon: Icon(_showSearchBarHome ? Icons.close : Icons.search, color: Colors.white),
+          onPressed: () {
+            setState(() {
+              _showSearchBarHome = !_showSearchBarHome;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, String label, String value, {String? status}) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: Colors.white, size: 24),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 10), textAlign: TextAlign.center),
+        if (status != null) ...[
+          const SizedBox(height: 2),
+          Text(status, style: const TextStyle(color: Colors.white70, fontSize: 9), textAlign: TextAlign.center),
+        ],
+      ],
+    );
+  }
+
   Widget _buildHomeView() {
     return StreamBuilder<QuerySnapshot>(
       stream: firestore
@@ -1491,23 +1583,106 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Bienvenue sur VERA',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+children: [
+Card(
+                color: const Color(0xFFE8F5E9),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundImage: _profilePhotoUrl != null
+                            ? NetworkImage(_profilePhotoUrl!)
+                            : const AssetImage('assets/vera.png') as ImageProvider,
+                        backgroundColor: Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Bonjour, ${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      const Spacer(),
+                      Column(
+crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Profil à compléter',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_calculateProfileCompletion()}%',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+const SizedBox(height: 4),
+                           SizedBox(
+                             width: 40,
+                             height: 40,
+                             child: CustomPaint(
+                               painter: _SemiCircleProgressPainter(
+                                 value: _calculateProfileCompletion() / 100,
+                                 progressColor: const Color(0xFF4CAF50),
+                               ),
+                             ),
+                           ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '${_firstNameController.text} ${_lastNameController.text}',
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Offres récentes',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (offers.isEmpty)
+                const SizedBox(height: 16),
+                Container(
+                  height: 94,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF87CEEB), Color(0xFF4CAF50)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight, 
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.briefcase, 'Candidatures', '12', status: '2 en attente')),
+                      Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
+                      Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.users, 'Entretiens', '3', status: '1 confirmé')),
+                      Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
+                      Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.bookmark, 'Offres sauvegardées', '5', status: '5 disponibles')),
+                      Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
+                      Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.graduationCap, 'Formations', '2', status: '1 en cours')),
+                    ],
+                  ),
+),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Offres recommandées pour vous',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _currentIndex = 1);
+                      },
+                      child: const Text(
+                        'Voir tous',
+                        style: TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (offers.isEmpty)
                 const Card(
                   child: ListTile(
                     leading: Icon(phicons.PhosphorIconsRegular.info),
@@ -1521,8 +1696,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     child: ListTile(
                       leading: Icon(phicons.PhosphorIconsRegular.briefcase, color: Color(0xFF4CAF50)),
-                      title: Text(data['title'] ?? 'Sans titre', style: const TextStyle(fontWeight: FontWeight.w500)),
-                      subtitle: Text('${data['company'] ?? ''} - ${data['city'] ?? ''}'),
+                      title: Text(data['title'] ?? 'Sans titre', style: const TextStyle(fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('${data['company'] ?? ''} - ${data['city'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: Icon(phicons.PhosphorIconsRegular.caretRight),
                       onTap: () {
                         setState(() => _selectedOffer = {
@@ -1625,7 +1800,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _currentIndex == 1 ? _buildEmployeeAppBar() : null,
+      appBar: _currentIndex == 0 ? _buildHomeAppBar() : _currentIndex == 1 ? _buildEmployeeAppBar() : null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -1991,7 +2166,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                               Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     if (data?['source'] != null) ...[
                                       Text(
@@ -3336,6 +3511,45 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 }
 
+class _ProfileSection {
+  final String name;
+  final double completed;
+  _ProfileSection({required this.name, required this.completed});
+}
+
+class _ProfileDonutChartPainter extends CustomPainter {
+  final double completion;
+  final List<_ProfileSection> sections;
+
+  _ProfileDonutChartPainter({required this.completion, required this.sections});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) / 2 - 10;
+    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 20;
+
+    final colors = [
+      const Color(0xFF4CAF50),
+      const Color(0xFF2196F3),
+      const Color(0xFFFF9800),
+      const Color(0xFF9C27B0),
+      const Color(0xFFF44336),
+    ];
+
+    double startAngle = -pi / 2;
+    for (int i = 0; i < sections.length; i++) {
+      final sweep = 2 * pi / sections.length * sections[i].completed;
+      paint.color = colors[i % colors.length].withOpacity(sections[i].completed > 0 ? 1 : 0.3);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweep, false, paint);
+      startAngle += 2 * pi / sections.length;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 class _SemiCircleProgressPainter extends CustomPainter {
   final double value;
   final Color backgroundColor;
@@ -3344,30 +3558,32 @@ class _SemiCircleProgressPainter extends CustomPainter {
 
   _SemiCircleProgressPainter({
     required this.value,
-    this.backgroundColor = const Color(0x33FFFFFF),
-    this.progressColor = Colors.white,
-    this.strokeWidth = 6,
+    this.backgroundColor = const Color(0x334CAF50),
+    this.progressColor = const Color(0xFF4CAF50),
+    this.strokeWidth = 8,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(
-      strokeWidth / 2,
-      strokeWidth / 2,
-      size.width - strokeWidth,
-      size.height - strokeWidth,
-    );
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) / 2 - strokeWidth / 2;
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
     paint.color = backgroundColor;
-    canvas.drawArc(rect, pi, pi, true, paint);
+    canvas.drawCircle(center, radius, paint);
 
     final clampedValue = value.clamp(0.0, 1.0);
     paint.color = progressColor;
-    canvas.drawArc(rect, pi, clampedValue * pi, true, paint);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi / 2,
+      2 * pi * clampedValue,
+      false,
+      paint,
+    );
   }
 
   @override
