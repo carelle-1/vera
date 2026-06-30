@@ -95,10 +95,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 40),
-                    Image.asset(
-                      'assets/vera.png',
-                      height: 80,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 80, color: Colors.white),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Colors.white],
+                      ).createShader(bounds),
+                      blendMode: BlendMode.modulate,
+                      child: Image.asset(
+                        'assets\veras.png',
+                        height: 80,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 80, color: Colors.white),
+                      ),
                     ),
                     const SizedBox(height: 30),
                     const Text(

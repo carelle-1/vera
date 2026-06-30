@@ -10,28 +10,13 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  final PageController _pageController = PageController();
+  final PageController _pageController = PageController(viewportFraction: 1.0);
   int _currentPage = 0;
 
   final List<String> _images = [
     'assets/b48c8274-61df-480f-9cd9-47d697ef03e9.jpg',
     'assets/28638.jpg',
     'assets/Graident_Ai_Robot.jpg',
-  ];
-
-  final List<Map<String, String>> _descriptions = [
-    {
-      'title': 'Recherche Automatique',
-      'subtitle': 'Trouvez les meilleures offres d\'emploi adaptées à votre profil grâce à notre système intelligent de matching.',
-    },
-    {
-      'title': 'Travail en Ligne',
-      'subtitle': 'Accédez à des opportunités de travail à distance et gérez vos missions depuis n\'importe où.',
-    },
-    {
-      'title': 'Votre Carrière Simplifiée',
-      'subtitle': 'Postulez, suivez vos candidatures et développez votre réseau professionnel en un seul endroit.',
-    },
   ];
 
   @override
@@ -77,7 +62,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         elevation: 0,
         leadingWidth: 180,
         leading: Transform.translate(
-          offset: Offset(-20, 0),
+          offset: const Offset(-20, 0),
           child: SizedBox(
             width: 100,
             child: Image.asset(
@@ -115,131 +100,173 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          SizedBox.expand(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _images.length,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPage = index;
-                });
-              },
-              itemBuilder: (context, index) {
-                return Image.asset(
-                  _images[index],
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                );
-              },
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 180,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _descriptions[_currentPage]['title']!,
-                    textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                    height: 1.3,
-                  ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _descriptions[_currentPage]['subtitle']!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.black87,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Column(
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.45,
+            child: Stack(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _images.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-                      width: _currentPage == index ? 24 : 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: _currentPage == index
-                            ? const Color(0xFF4CAF50)
-                            : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                    ),
+                Positioned.fill(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _images.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Image.asset(
+                          _images[index],
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        ),
+                      );
+                    },
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _goToNextPage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        padding: EdgeInsets.zero,
-                      ),
-                      child: Ink(
-                        decoration: const BoxDecoration(
-                          borderRadius: BorderRadius.all(Radius.circular(28)),
-                          gradient: LinearGradient(
-                            colors: [
-                              Color(0xFF00BCD4),
-                              Color(0xFF4CAF50),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Container(
-                          alignment: Alignment.center,
-                          constraints: const BoxConstraints(
-                            minWidth: double.infinity,
-                            minHeight: 56,
-                          ),
-child: Text(
-                             _currentPage == _images.length - 1 ? 'Connexion' : 'Suivant',
-                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _images.length,
+                      (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        width: _currentPage == index ? 24 : 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _currentPage == index
+                              ? const Color(0xFF4CAF50)
+                              : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _buildFeatureCard(
+                      icon: Icons.search,
+                      title: 'Recherche Automatique',
+                      description: 'Trouvez les meilleures offres d\'emploi adaptées à votre profil.',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildFeatureCard(
+                      icon: Icons.work,
+                      title: 'Travail en Ligne',
+                      description: 'Accédez à des opportunités de travail à distance.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SizedBox(
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _goToNextPage,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+              padding: EdgeInsets.zero,
+            ),
+            child: Ink(
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(28)),
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF00BCD4),
+                    Color(0xFF4CAF50),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Container(
+                alignment: Alignment.center,
+                constraints: const BoxConstraints(
+                  minWidth: double.infinity,
+                  minHeight: 56,
+                ),
+                child: Text(
+                  _currentPage == _images.length - 1 ? 'Connexion' : 'Suivant',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: const Color(0xFF4CAF50), size: 28),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black54,
             ),
           ),
         ],

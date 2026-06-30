@@ -85,10 +85,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 60),
-                    Image.asset(
-                      'assets/vera.png',
-                      height: 100,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 100, color: Colors.white),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Colors.white],
+                      ).createShader(bounds),
+                      blendMode: BlendMode.modulate,
+                      child: Image.asset(
+                        'assets\veras.png',
+                        height: 100,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 100, color: Colors.white),
+                      ),
                     ),
                     const SizedBox(height: 40),
                     const Text(
