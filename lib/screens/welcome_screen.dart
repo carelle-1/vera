@@ -103,7 +103,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       body: Column(
         children: [
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.55,
+            height: MediaQuery.of(context).size.height * 0.6,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -153,35 +153,33 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildFeatureCard(
-                      icon: Icons.search,
-                      title: 'Recherche Automatique',
-                      description: 'Trouvez les meilleures offres d\'emploi adaptées à votre profil.',
-                    ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildFeatureCard(
+                    icon: Icons.search,
+                    title: 'Recherche Automatique',
+                    description: 'Trouvez les meilleures offres d\'emploi adaptées à votre profil.',
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildFeatureCard(
-                      icon: Icons.work,
-                      title: 'Travail en Ligne',
-                      description: 'Accédez à des opportunités de travail à distance.',
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildFeatureCard(
+                    icon: Icons.work,
+                    title: 'Travail en Ligne',
+                    description: 'Accédez à des opportunités de travail à distance.',
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: SizedBox(
           height: 56,
           child: ElevatedButton(
@@ -234,7 +232,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     required String description,
   }) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -259,8 +257,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(
@@ -269,8 +265,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               fontSize: 12,
               color: Colors.black54,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
