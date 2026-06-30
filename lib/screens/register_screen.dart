@@ -101,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ).createShader(bounds),
                       blendMode: BlendMode.modulate,
                       child: Image.asset(
-                        'assets\veras.png',
+                        'assets/veras.png',
                         height: 80,
                         errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 80, color: Colors.white),
                       ),

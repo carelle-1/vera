@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ).createShader(bounds),
                       blendMode: BlendMode.modulate,
                       child: Image.asset(
-                        'assets\veras.png',
+                        'assets/veras.png',
                         height: 100,
                         errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 100, color: Colors.white),
                       ),

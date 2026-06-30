@@ -103,7 +103,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       body: Column(
         children: [
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.45,
+            height: MediaQuery.of(context).size.height * 0.55,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -158,7 +158,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: _buildFeatureCard(
@@ -235,15 +234,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     required String description,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -251,8 +250,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: const Color(0xFF4CAF50), size: 28),
-          const SizedBox(height: 8),
+          Icon(icon, color: const Color(0xFF4CAF50), size: 26),
+          const SizedBox(height: 6),
           Text(
             title,
             style: const TextStyle(
@@ -260,14 +259,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             description,
             style: const TextStyle(
               fontSize: 12,
               color: Colors.black54,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
