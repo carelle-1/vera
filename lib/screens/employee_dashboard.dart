@@ -1512,22 +1512,7 @@ SizedBox(
                 ),
               ),
             )
-          : Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundImage: _profilePhotoUrl != null
-                      ? NetworkImage(_profilePhotoUrl!)
-                      : const AssetImage('assets/vera.png') as ImageProvider,
-                  backgroundColor: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '$greet, ${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
+: const Icon(Icons.menu, color: Colors.white),
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications, color: Colors.white),
