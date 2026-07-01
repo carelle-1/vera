@@ -1536,14 +1536,25 @@ SizedBox(
     );
   }
 
-  Widget _buildStatItem(IconData icon, String label, String value, {String? status}) {
+  Widget _buildStatItem(IconData icon, String label, String value, {String? status, double? labelFontSize, bool labelSingleLine = false}) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, color: Colors.white, size: 24),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 10), textAlign: TextAlign.center),
+        if (labelSingleLine)
+          FittedBox(
+            fit: BoxFit.fitWidth,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.white, fontSize: labelFontSize ?? 10),
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          Text(label, style: TextStyle(color: Colors.white, fontSize: labelFontSize ?? 10), textAlign: TextAlign.center),
         if (status != null) ...[
           const SizedBox(height: 2),
           Text(status, style: const TextStyle(color: Colors.white70, fontSize: 9), textAlign: TextAlign.center),
@@ -1637,7 +1648,7 @@ children: [
               ),
                 const SizedBox(height: 16),
                 Container(
-                  height: 94,
+                   height: 100,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF87CEEB), Color(0xFF4CAF50)],
@@ -1653,7 +1664,7 @@ children: [
                       Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
                       Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.users, 'Entretiens', '3', status: '1 confirmé')),
                       Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
-                      Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.bookmark, 'Offres sauvegardées', '5', status: '5 disponibles')),
+                       Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.bookmark, 'Offres sauvegardées', '5', status: '5 disponibles', labelFontSize: 8, labelSingleLine: true)),
                       Container(width: 1, color: Colors.white.withOpacity(0.3), height: 50),
                       Expanded(child: _buildStatItem(phicons.PhosphorIconsRegular.graduationCap, 'Formations', '2', status: '1 en cours')),
                     ],
