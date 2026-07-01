@@ -1585,6 +1585,26 @@ SizedBox(
           return const Center(child: CircularProgressIndicator());
         }
         final offers = snapshot.data?.docs ?? [];
+
+        final query = _searchQuery.toLowerCase().trim();
+        final filteredOffers = query.isEmpty
+            ? offers
+            : offers.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final title = (data['title'] ?? '').toString().toLowerCase();
+                final description = (data['description'] ?? '').toString().toLowerCase();
+                final company = (data['company'] ?? '').toString().toLowerCase();
+                return title.contains(query) ||
+                    description.contains(query) ||
+                    company.contains(query);
+              }).toList();
+
+        filteredOffers.sort((a, b) {
+          final compatA = _calculateCompatibility((a.data() as Map<String, dynamic>?) ?? {});
+          final compatB = _calculateCompatibility((b.data() as Map<String, dynamic>?) ?? {});
+          return compatB.compareTo(compatA);
+        });
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -1702,7 +1722,7 @@ children: [
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (offers.isEmpty)
+                if (filteredOffers.isEmpty)
                 const Card(
                   child: ListTile(
                     leading: Icon(phicons.PhosphorIconsRegular.info),
@@ -1710,24 +1730,7 @@ children: [
                   ),
                 )
               else
-                ...List.generate(offers.length, (index) {
-                  final data = offers[index].data() as Map<String, dynamic>;
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    child: ListTile(
-                      leading: Icon(phicons.PhosphorIconsRegular.briefcase, color: Color(0xFF4CAF50)),
-                      title: Text(data['title'] ?? 'Sans titre', style: const TextStyle(fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text('${data['company'] ?? ''} - ${data['city'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                      trailing: Icon(phicons.PhosphorIconsRegular.caretRight),
-                      onTap: () {
-                        setState(() => _selectedOffer = {
-                          'id': offers[index].id,
-                          ...Map<String, dynamic>.from(data),
-                        });
-                      },
-                    ),
-                  );
-                }),
+                ...filteredOffers.map((offer) => _buildJobOfferCard(offer)).toList(),
               const SizedBox(height: 24),
               Card(
                 color: const Color(0xFFE8F5E9),
@@ -2244,7 +2247,8 @@ children: [
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
-                TextButton(
+                IconButton(
+                  icon: const Icon(Icons.visibility_outlined, color: Color(0xFF4CAF50)),
                   onPressed: () {
                     if (data != null) {
                       setState(() => _selectedOffer = {
@@ -2358,10 +2362,8 @@ children: [
                       ),
                     );
                   },
-                  child: const Text(
-                    'Voir l\'offre',
-                    style: TextStyle(color: Color(0xFF4CAF50)),
-                  ),
+                  iconSize: 20,
+                  tooltip: 'Voir l\'offre',
                 ),
               ],
             ),
