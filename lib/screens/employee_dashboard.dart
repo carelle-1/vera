@@ -81,6 +81,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   int _currentIndex = 0;
   int _profilePageIndex = 0;
+  int _currentHomePage = 0;
   final List<Map<String, dynamic>> _diplomas = [];
   String _searchQuery = '';
   bool _showSearchBarHome = false;
@@ -89,6 +90,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   final Set<String> _appliedOfferIds = {};
   final Set<String> _pendingAutoApplyOfferIds = {};
   final Set<String> _favoriteOfferIds = {};
+  final PageController _homePageController = PageController();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
@@ -400,6 +402,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _availabilityController.dispose();
     _desiredSalaryController.dispose();
     _aboutController.dispose();
+    _homePageController.dispose();
     super.dispose();
   }
 
@@ -1605,11 +1608,16 @@ SizedBox(
           return compatB.compareTo(compatA);
         });
 
+        if (_currentHomePage >= filteredOffers.length && filteredOffers.isNotEmpty) {
+          _currentHomePage = 0;
+          _homePageController.jumpToPage(0);
+        }
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-children: [
+            children: [
               SizedBox(
                 width: double.infinity,
                 child: Card(
@@ -1730,7 +1738,47 @@ children: [
                   ),
                 )
               else
-                ...filteredOffers.map((offer) => _buildJobOfferCard(offer)).toList(),
+                Column(
+                  children: [
+                    SizedBox(
+                      height: 340,
+                      child: PageView.builder(
+                        controller: _homePageController,
+                        itemCount: filteredOffers.take(10).length,
+                        onPageChanged: (index) {
+                          if (mounted) {
+                            setState(() => _currentHomePage = index);
+                          }
+                        },
+                        itemBuilder: (context, index) {
+                          final offer = filteredOffers[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: _buildJobOfferCard(offer),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        filteredOffers.take(10).length,
+                        (index) => Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: _currentHomePage == index
+                                ? const Color(0xFF4CAF50)
+                                : Colors.grey.shade400,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 24),
               Card(
                 color: const Color(0xFFE8F5E9),
@@ -2110,9 +2158,9 @@ children: [
     if (data == null) return const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2122,15 +2170,15 @@ children: [
                 logoUrl != null && logoUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: logoUrl,
-                        width: 50,
-                        height: 50,
+                        width: 40,
+                        height: 40,
                         placeholder: (context, url) =>
                             const CircularProgressIndicator(),
                         errorWidget: (context, url, error) =>
-                            const Icon(Icons.work, size: 40),
+                            const Icon(Icons.work, size: 36),
                       )
-                    : const Icon(Icons.work, size: 40),
-                const SizedBox(width: 12),
+                    : const Icon(Icons.work, size: 36),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2138,40 +2186,40 @@ children: [
                       if (isNew)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                              horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
                             color: const Color(0xFF4CAF50),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Text(
                             'Nouveau',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         title,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         companyInfo,
-                        style: const TextStyle(color: Colors.black54, fontSize: 13),
+                        style: const TextStyle(color: Colors.black54, fontSize: 11),
                       ),
                       if (skillsDisplay.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           skillsDisplay,
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          style: const TextStyle(color: Colors.grey, fontSize: 10),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -2180,18 +2228,18 @@ children: [
                   ),
                 ),
                 SizedBox(
-                  width: 70,
+                  width: 60,
                   child: Column(
                     children: [
                       Stack(
                         alignment: Alignment.center,
                         children: [
                           SizedBox(
-                            width: 50,
-                            height: 50,
+                            width: 40,
+                            height: 40,
                             child: CircularProgressIndicator(
                               value: compatibility / 100,
-                              strokeWidth: 4,
+                              strokeWidth: 3,
                               backgroundColor: Colors.grey[300],
                               color: const Color(0xFF4CAF50),
                             ),
@@ -2200,14 +2248,14 @@ children: [
                             '$compatibility%',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                              fontSize: 11,
                             ),
                           ),
                         ],
                       ),
                       const Text(
                         'Compatibilité',
-                        style: TextStyle(fontSize: 10, color: Colors.black54),
+                        style: TextStyle(fontSize: 9, color: Colors.black54),
                       ),
                     ],
                   ),
@@ -2216,25 +2264,37 @@ children: [
             ),
             Row(
               children: [
-                if (salary.isNotEmpty)
-                  Text(
-                    '$salary / mois',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
+                Expanded(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (salary.isNotEmpty)
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: Text(
+                            '$salary / mois',
+                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 8),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (salary.isNotEmpty && workMode != null)
+                        const SizedBox(width: 2),
+                      if (workMode != null)
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: Text(
+                            workMode,
+                            style: const TextStyle(color: Colors.grey, fontSize: 7),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
                   ),
-                if (salary.isNotEmpty && workMode != null)
-                  const SizedBox(width: 12),
-                if (workMode != null)
-                  Text(
-                    workMode,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                const Spacer(),
-                IconButton(
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: const Color(0xFF4CAF50),
-                  ),
-                  onPressed: () {
+                ),
+                GestureDetector(
+                  onTap: () {
                     setState(() {
                       if (isFavorite) {
                         _favoriteOfferIds.remove(offer.id);
@@ -2243,13 +2303,15 @@ children: [
                       }
                     });
                   },
-                  iconSize: 20,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                  child: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: const Color(0xFF4CAF50),
+                    size: 14,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.visibility_outlined, color: Color(0xFF4CAF50)),
-                  onPressed: () {
+                const SizedBox(width: 1),
+                GestureDetector(
+                  onTap: () {
                     if (data != null) {
                       setState(() => _selectedOffer = {
                         'id': offer.id,
@@ -2362,8 +2424,11 @@ children: [
                       ),
                     );
                   },
-                  iconSize: 20,
-                  tooltip: 'Voir l\'offre',
+                  child: Icon(
+                    Icons.visibility_outlined,
+                    color: const Color(0xFF4CAF50),
+                    size: 18,
+                  ),
                 ),
               ],
             ),
