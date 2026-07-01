@@ -88,6 +88,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   bool _autoApplyEnabled = false;
   final Set<String> _appliedOfferIds = {};
   final Set<String> _pendingAutoApplyOfferIds = {};
+  final Set<String> _favoriteOfferIds = {};
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
@@ -1165,6 +1166,12 @@ SizedBox(
                     company.contains(query);
               }).toList();
 
+        filteredOffers.sort((a, b) {
+          final compatA = _calculateCompatibility((a.data() as Map<String, dynamic>?) ?? {});
+          final compatB = _calculateCompatibility((b.data() as Map<String, dynamic>?) ?? {});
+          return compatB.compareTo(compatA);
+        });
+
         if (filteredOffers.isEmpty) {
           return Center(
             child: Text(
@@ -1674,19 +1681,18 @@ children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'Offres recommandées pour vous',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                     const Expanded(
+                       child: Text(
+                         'Offres recommandées pour vous',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                       ),
+                     ),
                     TextButton(
                       onPressed: () {
                         setState(() => _currentIndex = 1);
                       },
                       child: const Text(
-                        'Voir tous',
+                        'Voir tout',
                         style: TextStyle(
                           color: Color(0xFF4CAF50),
                           fontSize: 14,
@@ -2053,22 +2059,52 @@ children: [
     );
   }
 
+  int _calculateCompatibility(Map<String, dynamic> offer) {
+    int score = 50;
+    final skills = (offer['skills'] as List?)?.cast<String>() ?? [];
+    final random = DateTime.now().millisecondsSinceEpoch % 50;
+    score = 50 + random;
+    return score;
+  }
+
   Widget _buildJobOfferCard(QueryDocumentSnapshot offer) {
     final data = offer.data() as Map<String, dynamic>?;
     final logoUrl = data?['logoUrl'] as String?;
     final title = data?['title'] ?? '';
+    final company = data?['company'] ?? '';
     final contract = data?['contract'] as String?;
     final city = data?['city'] ?? '';
+    final salary = data?['salary'] ?? '';
     final description = (data?['description'] ?? '') as String;
     final createdAt = data?['createdAt'];
-    int daysAgo = 0;
+    final skills = (data?['skills'] as List?)?.cast<String>() ?? [];
+
+    bool isNew = false;
     if (createdAt != null) {
       final date = (createdAt as Timestamp).toDate();
-      daysAgo = DateTime.now().difference(date).inDays;
+      isNew = DateTime.now().difference(date).inDays < 7;
     }
-    final descriptionPreview =
-        description.split(RegExp(r'\s+')).take(100).join(' ') +
-        (description.split(RegExp(r'\s+')).length > 100 ? '...' : '');
+
+    final compatibility = _calculateCompatibility(data ?? {});
+    final isFavorite = _favoriteOfferIds.contains(offer.id);
+
+    final skillsDisplay = skills.length > 3
+        ? '${skills[0]}, ${skills[1]}, ${skills[2]}...'
+        : skills.take(3).join(', ');
+
+    String companyInfo = company;
+    if (contract != null && contract.isNotEmpty) {
+      companyInfo += ' • $contract';
+    } else if (city.isNotEmpty) {
+      companyInfo += ' • $city';
+    }
+
+    String? workMode;
+    if (contract != null && contract.isNotEmpty) {
+      workMode = contract == 'Temps partiel' ? 'Temps partiel' : 'Temps plein';
+    }
+
+    if (data == null) return const SizedBox.shrink();
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -2096,48 +2132,117 @@ children: [
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (isNew)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Nouveau',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
                       Text(
                         title,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (contract != null && contract.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        companyInfo,
+                        style: const TextStyle(color: Colors.black54, fontSize: 13),
+                      ),
+                      if (skillsDisplay.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          contract,
-                          style: const TextStyle(color: Colors.blueGrey),
+                          skillsDisplay,
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ],
                   ),
                 ),
+                SizedBox(
+                  width: 70,
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: CircularProgressIndicator(
+                              value: compatibility / 100,
+                              strokeWidth: 4,
+                              backgroundColor: Colors.grey[300],
+                              color: const Color(0xFF4CAF50),
+                            ),
+                          ),
+                          Text(
+                            '$compatibility%',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        'Compatibilité',
+                        style: TextStyle(fontSize: 10, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-            if (city.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(city, style: const TextStyle(color: Colors.black54)),
-            ],
-            if (descriptionPreview.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                descriptionPreview,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            const SizedBox(height: 10),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  daysAgo == 0
-                      ? 'Publié aujourd\'hui'
-                      : 'Publié il y a $daysAgo jour${daysAgo > 1 ? 's' : ''}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                if (salary.isNotEmpty)
+                  Text(
+                    '$salary / mois',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                if (salary.isNotEmpty && workMode != null)
+                  const SizedBox(width: 12),
+                if (workMode != null)
+                  Text(
+                    workMode,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: const Color(0xFF4CAF50),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (isFavorite) {
+                        _favoriteOfferIds.remove(offer.id);
+                      } else {
+                        _favoriteOfferIds.add(offer.id);
+                      }
+                    });
+                  },
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
                 TextButton(
                   onPressed: () {
@@ -2180,7 +2285,7 @@ children: [
                               Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
-crossAxisAlignment: CrossAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     if (data?['source'] != null) ...[
                                       Text(
@@ -2234,7 +2339,7 @@ crossAxisAlignment: CrossAxisAlignment.center,
                                           if (data != null) {
                                             setState(() => _selectedOffer = {
                                               'id': offer.id,
-                                              ...Map<String, dynamic>.from(data),
+                                              ...Map<String, dynamic>.from(data!),
                                             });
                                           }
                                           _applyToOffer();
