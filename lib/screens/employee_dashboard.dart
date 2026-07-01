@@ -1470,12 +1470,15 @@ SizedBox(
     );
   }
 
-  PreferredSizeWidget _buildHomeAppBar() {
-    String greet = '';
+  String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) greet = 'Bonjour';
-    else if (hour < 18) greet = 'Bonjour';
-    else greet = 'Bonsoir';
+    if (hour < 12) return 'Bonjour';
+    if (hour < 18) return 'Bon après-midi';
+    return 'Bonsoir';
+  }
+
+  PreferredSizeWidget _buildHomeAppBar() {
+    String greet = _getGreeting();
 
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -1569,12 +1572,14 @@ SizedBox(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
 children: [
-Card(
-                color: const Color(0xFFE8F5E9),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
+              SizedBox(
+                width: double.infinity,
+                child: Card(
+                  color: const Color(0xFFE8F5E9),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
                       CircleAvatar(
                         radius: 22,
                         backgroundImage: _profilePhotoUrl != null
@@ -1583,39 +1588,52 @@ Card(
                         backgroundColor: Colors.white,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        'Bonjour, ${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min, 
+                          children: [
+                            Text(
+                              '${_getGreeting()}, ${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            const Text(
+                              'Prêt à faire décoller votre carrière aujourd\'hui',
+                              style: TextStyle(fontSize: 10, color: Colors.black54),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 12),
                       Column(
-crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           const Text(
-                            'Profil à compléter',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            'Profil complété',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '${_calculateProfileCompletion()}%',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                           ),
-const SizedBox(height: 4),
-                           SizedBox(
-                             width: 40,
-                             height: 40,
-                             child: CustomPaint(
-                               painter: _SemiCircleProgressPainter(
-                                 value: _calculateProfileCompletion() / 100,
-                                 progressColor: const Color(0xFF4CAF50),
-                               ),
-                             ),
-                           ),
+                          const SizedBox(height: 4),
+                          SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: CustomPaint(
+                              painter: _SemiCircleProgressPainter(
+                                value: _calculateProfileCompletion() / 100,
+                                progressColor: const Color(0xFF4CAF50),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
+              ),
               ),
                 const SizedBox(height: 16),
                 Container(
