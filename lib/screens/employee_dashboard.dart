@@ -1586,10 +1586,8 @@ SizedBox(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                const SizedBox(height: 12),
                 Center(
                   child: Container(
                     decoration: BoxDecoration(
@@ -1600,9 +1598,11 @@ SizedBox(
                     child: Icon(icon, color: const Color(0xFF4CAF50), size: 28),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 6),
+                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black45),
@@ -2039,9 +2039,11 @@ SizedBox(
               const SizedBox(height: 4),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: isSelected ? const Color(0xFF4CAF50) : Colors.grey,
-                  fontSize: 12,
+                  fontSize: index == 2 ? 10 : 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
