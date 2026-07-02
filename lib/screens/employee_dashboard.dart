@@ -1573,6 +1573,112 @@ SizedBox(
     );
   }
 
+  Widget _buildAISuggestionCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return SizedBox(
+      width: 180,
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 0,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 12),
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(14),
+                    child: Icon(icon, color: const Color(0xFF4CAF50), size: 28),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black45),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAISuggestionsSection() {
+    final suggestions = [
+      {
+        'icon': phicons.PhosphorIconsRegular.paperPlaneRight,
+        'title': 'Postulé à',
+        'subtitle': '5 nouvelles offres',
+      },
+      {
+        'icon': phicons.PhosphorIconsRegular.sparkle,
+        'title': 'Améliorer vos compétences',
+        'subtitle': 'Suivez une formation',
+      },
+      {
+        'icon': phicons.PhosphorIconsRegular.copy,
+        'title': 'Mettre à jour votre CV',
+        'subtitle': 'Rafraîchissez vos expériences',
+      },
+      {
+        'icon': phicons.PhosphorIconsRegular.userFocus,
+        'title': 'Préparer vos entretiens',
+        'subtitle': 'Simulez vos réponses',
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'suggestions IA pour vous',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text(
+                'voir tout',
+                style: TextStyle(color: Color(0xFF4CAF50), fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: suggestions.map((item) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: _buildAISuggestionCard(
+                  item['icon'] as IconData,
+                  item['title'] as String,
+                  item['subtitle'] as String,
+                  () {},
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildHomeView() {
     return StreamBuilder<QuerySnapshot>(
       stream: firestore
@@ -1909,10 +2015,40 @@ SizedBox(
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              _buildAISuggestionsSection(),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBottomNavItem({required IconData icon, required String label, required int index}) {
+    final isSelected = _currentIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _currentIndex = index),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: isSelected ? const Color(0xFF4CAF50) : Colors.grey, size: 24),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? const Color(0xFF4CAF50) : Colors.grey,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1981,60 +2117,38 @@ SizedBox(
           _buildProfileView(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF4CAF50),
-        foregroundColor: Colors.white,
-        onPressed: () {
-          setState(() => _currentIndex = 4);
-        },
-        child: Icon(phicons.PhosphorIconsRegular.user),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
+      bottomNavigationBar: Container(
         color: Colors.white,
-        notchMargin: 8,
-        elevation: 10,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              IconButton(
-                icon: Icon(
-                  phicons.PhosphorIconsRegular.house,
-                  color: _currentIndex == 0 ? const Color(0xFF4CAF50) : Colors.grey,
-                  size: 24,
-                ),
-                onPressed: () => setState(() => _currentIndex = 0),
-              ),
-              IconButton(
-                icon: Icon(
-                  phicons.PhosphorIconsRegular.briefcase,
-                  color: _currentIndex == 1 ? const Color(0xFF4CAF50) : Colors.grey,
-                  size: 24,
-                ),
-                onPressed: () => setState(() => _currentIndex = 1),
-              ),
-              const SizedBox(width: 40),
-              IconButton(
-                icon: Icon(
-                  phicons.PhosphorIconsRegular.paperPlane,
-                  color: _currentIndex == 2 ? const Color(0xFF4CAF50) : Colors.grey,
-                  size: 24,
-                ),
-                onPressed: () => setState(() => _currentIndex = 2),
-              ),
-              IconButton(
-                icon: Icon(
-                  phicons.PhosphorIconsRegular.chats,
-                  color: _currentIndex == 3 ? const Color(0xFF4CAF50) : Colors.grey,
-                  size: 24,
-                ),
-                onPressed: () => setState(() => _currentIndex = 3),
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildBottomNavItem(
+              icon: phicons.PhosphorIconsRegular.house,
+              label: 'Accueil',
+              index: 0,
+            ),
+            _buildBottomNavItem(
+              icon: phicons.PhosphorIconsRegular.briefcase,
+              label: 'Offre',
+              index: 1,
+            ),
+            _buildBottomNavItem(
+              icon: phicons.PhosphorIconsRegular.paperPlane,
+              label: 'Candidatures',
+              index: 2,
+            ),
+            _buildBottomNavItem(
+              icon: phicons.PhosphorIconsRegular.chats,
+              label: 'Message',
+              index: 3,
+            ),
+            _buildBottomNavItem(
+              icon: phicons.PhosphorIconsRegular.user,
+              label: 'Profil',
+              index: 4,
+            ),
+          ],
         ),
       ),
     );
