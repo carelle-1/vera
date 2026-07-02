@@ -1856,13 +1856,15 @@ SizedBox(
                                   color: const Color(0xFF4CAF50),
                                 ),
                                 const SizedBox(height: 6),
-                                const Text(
+                                Text(
                                   'Vous êtes sur la bonne voie !',
-                                  style: TextStyle(color: Colors.black54),
+                                  style: const TextStyle(color: Colors.black54, fontSize: 9),
+                                  maxLines: null,
+                                  overflow: TextOverflow.visible,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Étapes restantes : ${100 - _calculateProfileCompletion()}',
+                                  '${100 - _calculateProfileCompletion()} étapes restantes pour atteindre votre objectif',
                                   style: const TextStyle(color: Colors.black54),
                                 ),
                               ],
@@ -1877,23 +1879,23 @@ SizedBox(
                                   children: [
                                     Icon(Icons.rocket_launch, size: 32, color: const Color(0xFF4CAF50)),
                                     Positioned(
-                                      top: 0,
-                                      left: 0,
+                                      top: -8,
+                                      left: -8,
                                       child: Icon(Icons.star, size: 14, color: Colors.amber),
                                     ),
                                     Positioned(
-                                      top: 0,
-                                      right: 0,
+                                      top: -8,
+                                      right: -8,
                                       child: Icon(Icons.star, size: 14, color: Colors.amber),
                                     ),
                                     Positioned(
-                                      bottom: 0,
-                                      left: 0,
+                                      bottom: -8,
+                                      left: -8,
                                       child: Icon(Icons.star, size: 14, color: Colors.amber),
                                     ),
                                     Positioned(
-                                      bottom: 0,
-                                      right: 0,
+                                      bottom: -8,
+                                      right: -8,
                                       child: Icon(Icons.star, size: 14, color: Colors.amber),
                                     ),
                                   ],
