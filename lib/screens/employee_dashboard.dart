@@ -1786,24 +1786,122 @@ SizedBox(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Mon profil',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Votre progression',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() => _currentIndex = 4);
+                            },
+                            child: const Text(
+                              'Voir mon plan',
+                              style: TextStyle(
+                                color: Color(0xFF4CAF50),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      LinearProgressIndicator(
-                        value: _calculateProfileCompletion() / 100,
-                        backgroundColor: Colors.white,
-                        color: const Color(0xFF4CAF50),
-                      ),
-                      const SizedBox(height: 8),
-                      Text('${_calculateProfileCompletion()}% complété'),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed: () => setState(() => _currentIndex = 4),
-                        icon: Icon(phicons.PhosphorIconsRegular.pen),
-                        label: const Text('Compléter mon profil'),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 56,
+                                      height: 56,
+                                      child: CircularProgressIndicator(
+                                        value: _calculateProfileCompletion() / 100,
+                                        strokeWidth: 4,
+                                        backgroundColor: Colors.white,
+                                        color: const Color(0xFF4CAF50),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_calculateProfileCompletion()}%',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Objectif : Devenir développeur Flutter',
+                                  style: TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(
+                                  value: _calculateProfileCompletion() / 100,
+                                  backgroundColor: Colors.white,
+                                  color: const Color(0xFF4CAF50),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Vous êtes sur la bonne voie !',
+                                  style: TextStyle(color: Colors.black54),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Étapes restantes : ${100 - _calculateProfileCompletion()}',
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Icon(Icons.rocket_launch, size: 32, color: const Color(0xFF4CAF50)),
+                                    Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      child: Icon(Icons.star, size: 14, color: Colors.amber),
+                                    ),
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: Icon(Icons.star, size: 14, color: Colors.amber),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      left: 0,
+                                      child: Icon(Icons.star, size: 14, color: Colors.amber),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Icon(Icons.star, size: 14, color: Colors.amber),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2300,7 +2398,7 @@ SizedBox(
                     });
                   },
                   child: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    isFavorite ? Icons.bookmark : Icons.bookmark_border,
                     color: const Color(0xFF4CAF50),
                     size: 16,
                   ),
