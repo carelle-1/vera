@@ -1741,7 +1741,7 @@ SizedBox(
                 Column(
                   children: [
                     SizedBox(
-                      height: 340,
+                      height: 150,
                       child: PageView.builder(
                         controller: _homePageController,
                         itemCount: filteredOffers.take(10).length,
@@ -1752,8 +1752,7 @@ SizedBox(
                         },
                         itemBuilder: (context, index) {
                           final offer = filteredOffers[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          return Center(
                             child: _buildJobOfferCard(offer),
                           );
                         },
@@ -2158,14 +2157,16 @@ SizedBox(
     if (data == null) return const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 logoUrl != null && logoUrl.isNotEmpty
                     ? CachedNetworkImage(
@@ -2195,35 +2196,31 @@ SizedBox(
                             'Nouveau',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-                      const SizedBox(height: 2),
                       Text(
                         title,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 15,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         companyInfo,
-                        style: const TextStyle(color: Colors.black54, fontSize: 11),
+                        style: const TextStyle(color: Colors.black54, fontSize: 12),
                       ),
-                      if (skillsDisplay.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                      if (skillsDisplay.isNotEmpty)
                         Text(
                           skillsDisplay,
-                          style: const TextStyle(color: Colors.grey, fontSize: 10),
+                          style: const TextStyle(color: Colors.grey, fontSize: 11),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -2248,7 +2245,7 @@ SizedBox(
                             '$compatibility%',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -2266,26 +2263,25 @@ SizedBox(
               children: [
                 Expanded(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       if (salary.isNotEmpty)
                         Flexible(
                           fit: FlexFit.loose,
                           child: Text(
                             '$salary / mois',
-                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 8),
+                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       if (salary.isNotEmpty && workMode != null)
-                        const SizedBox(width: 2),
+                        const SizedBox(width: 6),
                       if (workMode != null)
                         Flexible(
                           fit: FlexFit.loose,
                           child: Text(
                             workMode,
-                            style: const TextStyle(color: Colors.grey, fontSize: 7),
+                            style: const TextStyle(color: Colors.grey, fontSize: 9),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2306,10 +2302,10 @@ SizedBox(
                   child: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: const Color(0xFF4CAF50),
-                    size: 14,
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 1),
+                const SizedBox(width: 2),
                 GestureDetector(
                   onTap: () {
                     if (data != null) {
