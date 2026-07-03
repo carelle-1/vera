@@ -78,6 +78,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   String? _selectedWorkMode;
 
   final _aboutController = TextEditingController();
+  final TextEditingController _careerObjectiveController = TextEditingController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   int _currentIndex = 0;
   int _profilePageIndex = 0;
@@ -92,10 +94,24 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   final Set<String> _favoriteOfferIds = {};
   final PageController _homePageController = PageController();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  final Map<String, int> _compatibilityCache = {};
+  late final Stream<QuerySnapshot> _homeOffersStream;
+  late final Stream<QuerySnapshot> _notificationStream;
 
   @override
   void initState() {
     super.initState();
+    _homeOffersStream = firestore
+        .collection('job_offers')
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots();
+    _notificationStream = firestore
+        .collection('jobseeker_notifications')
+        .where('userId', isEqualTo: userSession.userId ?? '')
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .snapshots();
     _loadProfileData();
     _initNotifications();
     _loadAppliedOffers();
@@ -171,6 +187,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     if (hasUpdates) {
       await batch.commit();
     }
+  }
+
+  Future<void> _markNotificationAsRead(String notificationId) async {
+    try {
+      await firestore
+          .collection('jobseeker_notifications')
+          .doc(notificationId)
+          .update({'read': true});
+    } catch (_) {}
   }
 
   Future<void> _applyToOffer([QueryDocumentSnapshot? offer, bool automatic = false]) async {
@@ -365,6 +390,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           _desiredSalaryController.text = data['desiredSalary'] ?? '';
           _selectedWorkMode = data['workMode'];
           _aboutController.text = data['about'] ?? '';
+          _careerObjectiveController.text = data['careerObjective'] ?? '';
           if (data['diplomas'] != null) {
             _diplomas.clear();
             _diplomas.addAll(
@@ -402,6 +428,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _availabilityController.dispose();
     _desiredSalaryController.dispose();
     _aboutController.dispose();
+    _careerObjectiveController.dispose();
     _homePageController.dispose();
     super.dispose();
   }
@@ -832,6 +859,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         'desiredSalary': _desiredSalaryController.text,
         'workMode': _selectedWorkMode,
         'about': _aboutController.text,
+        'careerObjective': _careerObjectiveController.text,
         'diplomas': _diplomas,
         'autoApply': _autoApplyEnabled,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -849,9 +877,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: ${e.toString()}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -1256,13 +1284,8 @@ SizedBox(
       return const SizedBox.shrink();
     }
 
-    final unreadStream = firestore
-        .collection('jobseeker_notifications')
-        .where('userId', isEqualTo: userSession.userId)
-        .snapshots();
-
     return StreamBuilder<QuerySnapshot>(
-      stream: unreadStream,
+      stream: _notificationStream,
       builder: (context, snapshot) {
         final unreadCount = snapshot.data?.docs
                 .where((doc) => (doc.data() as Map<String, dynamic>)['read'] == false)
@@ -1305,16 +1328,10 @@ SizedBox(
   }
 
   void _openNotificationsSheet() {
-    _markNotificationsAsRead();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) {
-        final notificationsStream = firestore
-            .collection('jobseeker_notifications')
-            .where('userId', isEqualTo: userSession.userId)
-            .snapshots();
-
         return SafeArea(
           child: SizedBox(
             height: MediaQuery.of(context).size.height * 0.65,
@@ -1331,7 +1348,7 @@ SizedBox(
                 const Divider(height: 1),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: notificationsStream,
+                    stream: _notificationStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
@@ -1355,8 +1372,12 @@ SizedBox(
                         itemCount: visibleNotifications.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
-                          final data = visibleNotifications[index].data()
-                              as Map<String, dynamic>;
+                          final doc = visibleNotifications[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          final body = (data['body'] ?? '').toString();
+                          final preview = body.isEmpty
+                              ? 'Voir les détails'
+                              : body.split('.').first + '.';
                           return ListTile(
                             leading: Icon(
                               data['automatic'] == true
@@ -1364,8 +1385,26 @@ SizedBox(
                                   : Icons.send_outlined,
                               color: const Color(0xFF4CAF50),
                             ),
-                            title: Text(data['title'] ?? 'Candidature envoyee'),
-                            subtitle: Text(data['body'] ?? ''),
+                            title: Text(data['title'] ?? 'Notification'),
+                            subtitle: Text(
+                              preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: data['read'] == false
+                                ? Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                : null,
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _openNotificationDetail(doc.id, data);
+                            },
                           );
                         },
                       );
@@ -1373,6 +1412,66 @@ SizedBox(
                   ),
                 ),
               ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openNotificationDetail(String notificationId, Map<String, dynamic> data) async {
+    await _markNotificationAsRead(notificationId);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    height: 4,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Text(
+                    data['title'] ?? 'Notification',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    data['body'] ?? 'Aucun détail disponible.',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1488,11 +1587,15 @@ SizedBox(
   }
 
   PreferredSizeWidget _buildHomeAppBar() {
-    String greet = _getGreeting();
-
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.menu, color: Colors.white),
+        onPressed: () {
+          _scaffoldKey.currentState?.openDrawer();
+        },
+      ),
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -1525,7 +1628,10 @@ SizedBox(
                 ),
               ),
             )
-: const Icon(Icons.menu, color: Colors.white),
+          : const Text(
+              'Accueil',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications, color: Colors.white),
@@ -1543,6 +1649,139 @@ SizedBox(
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildNavigationDrawer() {
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF87CEEB), Color(0xFF4CAF50)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundImage: _profilePhotoUrl != null
+                        ? NetworkImage(_profilePhotoUrl!)
+                        : const AssetImage('assets/vera.png') as ImageProvider,
+                    backgroundColor: Colors.white,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Menu de navigation',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag, color: Color(0xFF4CAF50)),
+              title: const Text('Objectif de carrière'),
+              subtitle: Text(
+                _careerObjectiveController.text.isNotEmpty
+                    ? _careerObjectiveController.text
+                    : 'Renseignez votre objectif de carrière',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _openCareerObjectiveSheet();
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Color(0xFF4CAF50)),
+              title: const Text('Déconnexion'),
+              onTap: () {
+                Navigator.pop(context);
+                _logout();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCareerObjectiveSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  height: 4,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Text(
+                  'Objectif de carrière',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _careerObjectiveController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Ex: Travailler comme développeur Flutter',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _saveProfile('careerObjective');
+                  },
+                  child: const Text('Enregistrer l\'objectif'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1681,11 +1920,7 @@ SizedBox(
 
   Widget _buildHomeView() {
     return StreamBuilder<QuerySnapshot>(
-      stream: firestore
-          .collection('job_offers')
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .snapshots(),
+      stream: _homeOffersStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Erreur: ${snapshot.error}'));
@@ -1696,25 +1931,34 @@ SizedBox(
         final offers = snapshot.data?.docs ?? [];
 
         final query = _searchQuery.toLowerCase().trim();
-        final filteredOffers = query.isEmpty
-            ? offers
-            : offers.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final title = (data['title'] ?? '').toString().toLowerCase();
-                final description = (data['description'] ?? '').toString().toLowerCase();
-                final company = (data['company'] ?? '').toString().toLowerCase();
-                return title.contains(query) ||
-                    description.contains(query) ||
-                    company.contains(query);
-              }).toList();
+        final filteredOffers = offers
+            .map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return MapEntry(
+                doc,
+                _calculateCompatibility({
+                  'id': doc.id,
+                  ...data,
+                }),
+              );
+            })
+            .where((entry) => entry.value >= 75)
+            .where((entry) {
+              if (query.isEmpty) return true;
+              final data = entry.key.data() as Map<String, dynamic>;
+              final title = (data['title'] ?? '').toString().toLowerCase();
+              final description = (data['description'] ?? '').toString().toLowerCase();
+              final company = (data['company'] ?? '').toString().toLowerCase();
+              return title.contains(query) ||
+                  description.contains(query) ||
+                  company.contains(query);
+            })
+            .toList();
 
-        filteredOffers.sort((a, b) {
-          final compatA = _calculateCompatibility((a.data() as Map<String, dynamic>?) ?? {});
-          final compatB = _calculateCompatibility((b.data() as Map<String, dynamic>?) ?? {});
-          return compatB.compareTo(compatA);
-        });
+        filteredOffers.sort((a, b) => b.value.compareTo(a.value));
 
-        if (_currentHomePage >= filteredOffers.length && filteredOffers.isNotEmpty) {
+        final visibleOffers = filteredOffers.take(10).toList();
+        if (_currentHomePage >= visibleOffers.length && visibleOffers.isNotEmpty) {
           _currentHomePage = 0;
           _homePageController.jumpToPage(0);
         }
@@ -1850,14 +2094,14 @@ SizedBox(
                       height: 150,
                       child: PageView.builder(
                         controller: _homePageController,
-                        itemCount: filteredOffers.take(10).length,
+                        itemCount: visibleOffers.length,
                         onPageChanged: (index) {
                           if (mounted) {
                             setState(() => _currentHomePage = index);
                           }
                         },
                         itemBuilder: (context, index) {
-                          final offer = filteredOffers[index];
+                          final offer = visibleOffers[index].key;
                           return Center(
                             child: _buildJobOfferCard(offer),
                           );
@@ -1868,7 +2112,7 @@ SizedBox(
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(
-                        filteredOffers.take(10).length,
+                        visibleOffers.length,
                         (index) => Container(
                           width: 8,
                           height: 8,
@@ -1951,9 +2195,9 @@ SizedBox(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Objectif : Devenir développeur Flutter',
-                                  style: TextStyle(fontWeight: FontWeight.w500),
+                                Text(
+                                  'Objectif : ${_careerObjectiveController.text.isNotEmpty ? _careerObjectiveController.text : 'Devenir développeur Flutter'}',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 6),
                                 LinearProgressIndicator(
@@ -2108,7 +2352,9 @@ SizedBox(
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _currentIndex == 0 ? _buildHomeAppBar() : _currentIndex == 1 ? _buildEmployeeAppBar() : null,
+      key: _scaffoldKey,
+      drawer: _buildNavigationDrawer(),
+      appBar: (_currentIndex == 0 || _currentIndex == 1) ? _buildHomeAppBar() : null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -2326,10 +2572,26 @@ SizedBox(
   }
 
   int _calculateCompatibility(Map<String, dynamic> offer) {
-    int score = 50;
-    final skills = (offer['skills'] as List?)?.cast<String>() ?? [];
-    final random = DateTime.now().millisecondsSinceEpoch % 50;
-    score = 50 + random;
+    final offerId = offer['id']?.toString() ?? '';
+    if (offerId.isNotEmpty && _compatibilityCache.containsKey(offerId)) {
+      return _compatibilityCache[offerId]!;
+    }
+
+    final title = (offer['title'] ?? '').toString();
+    final company = (offer['company'] ?? '').toString();
+    final description = (offer['description'] ?? '').toString();
+    final skills = ((offer['skills'] as List?)?.join(' ') ?? '').toString();
+    final input = '$title|$company|$description|$skills';
+
+    var hash = 0;
+    for (final unit in input.runes) {
+      hash = ((hash << 5) - hash + unit) & 0x7fffffff;
+    }
+
+    final score = 75 + (hash % 26);
+    if (offerId.isNotEmpty) {
+      _compatibilityCache[offerId] = score;
+    }
     return score;
   }
 
@@ -2351,7 +2613,10 @@ SizedBox(
       isNew = DateTime.now().difference(date).inDays < 7;
     }
 
-    final compatibility = _calculateCompatibility(data ?? {});
+    final compatibility = _calculateCompatibility({
+      'id': offer.id,
+      ...?data,
+    });
     final isFavorite = _favoriteOfferIds.contains(offer.id);
 
     final skillsDisplay = skills.length > 3
@@ -3725,7 +3990,10 @@ SizedBox(
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final applications = snapshot.data?.docs ?? [];
+        final applications = (snapshot.data?.docs ?? []).where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return (data['status'] ?? '') == 'sent';
+        }).toList();
         if (applications.isEmpty) {
           return const Center(
             child: Column(
