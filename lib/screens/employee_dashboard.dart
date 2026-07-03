@@ -96,7 +96,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   final Map<String, int> _compatibilityCache = {};
   late final Stream<QuerySnapshot> _homeOffersStream;
-  late final Stream<QuerySnapshot> _notificationStream;
+  // GCP API key must not be hardcoded. Provide via --dart-define GCP_API_KEY=your_key
+  final String _gcpApiKey = const String.fromEnvironment('GCP_API_KEY');
+
+  Stream<QuerySnapshot> get _notificationStream {
+    if (userSession.userId == null || userSession.userId!.isEmpty) {
+      return Stream<QuerySnapshot>.empty();
+    }
+    return firestore
+        .collection('jobseeker_notifications')
+        .where('userId', isEqualTo: userSession.userId)
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .snapshots();
+  }
 
   @override
   void initState() {
@@ -106,12 +119,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         .orderBy('createdAt', descending: true)
         .limit(20)
         .snapshots();
-    _notificationStream = firestore
-        .collection('jobseeker_notifications')
-        .where('userId', isEqualTo: userSession.userId ?? '')
-        .orderBy('createdAt', descending: true)
-        .limit(10)
-        .snapshots();
+    _setupProfileListeners();
     _loadProfileData();
     _initNotifications();
     _loadAppliedOffers();
@@ -427,6 +435,26 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _contractTypeController.dispose();
     _availabilityController.dispose();
     _desiredSalaryController.dispose();
+    final controllers = [
+      _firstNameController,
+      _lastNameController,
+      _emailController,
+      _phoneController,
+      _countryController,
+      _cityController,
+      _childrenCountController,
+      _currentSalaryController,
+      _experienceMonthsController,
+      _experienceYearsController,
+      _currentPositionController,
+      _availabilityController,
+      _desiredSalaryController,
+      _aboutController,
+      _careerObjectiveController,
+    ];
+    for (final controller in controllers) {
+      controller.removeListener(_refreshProfileCompletion);
+    }
     _aboutController.dispose();
     _careerObjectiveController.dispose();
     _homePageController.dispose();
@@ -439,6 +467,33 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     if (mounted) {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
+  }
+
+  void _setupProfileListeners() {
+    final controllers = [
+      _firstNameController,
+      _lastNameController,
+      _emailController,
+      _phoneController,
+      _countryController,
+      _cityController,
+      _childrenCountController,
+      _currentSalaryController,
+      _experienceMonthsController,
+      _experienceYearsController,
+      _currentPositionController,
+      _availabilityController,
+      _desiredSalaryController,
+      _aboutController,
+      _careerObjectiveController,
+    ];
+    for (final controller in controllers) {
+      controller.addListener(_refreshProfileCompletion);
+    }
+  }
+
+  void _refreshProfileCompletion() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _pickProfilePhoto() async {
@@ -1170,61 +1225,62 @@ SizedBox(
   }
 
   Widget _buildEmployeeBody() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: firestore
-          .collection('job_offers')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Erreur: ${snapshot.error}'));
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final offers = snapshot.data?.docs ?? [];
-
-        final query = _searchQuery.toLowerCase().trim();
-        final filteredOffers = query.isEmpty
-            ? offers
-            : offers.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final title = (data['title'] ?? '').toString().toLowerCase();
-                final description = (data['description'] ?? '').toString().toLowerCase();
-                final company = (data['company'] ?? '').toString().toLowerCase();
-                return title.contains(query) ||
-                    description.contains(query) ||
-                    company.contains(query);
-              }).toList();
-
-        filteredOffers.sort((a, b) {
-          final compatA = _calculateCompatibility((a.data() as Map<String, dynamic>?) ?? {});
-          final compatB = _calculateCompatibility((b.data() as Map<String, dynamic>?) ?? {});
-          return compatB.compareTo(compatA);
-        });
-
-        if (filteredOffers.isEmpty) {
-          return Center(
-            child: Text(
-              query.isEmpty
-                  ? 'Aucune offre disponible'
-                  : 'Aucun résultat pour "$_searchQuery"',
-            ),
-          );
-        }
-
-        _queueAutoApplications(filteredOffers);
-
-         if (!mounted) return const SizedBox.shrink();
-
-        return ListView.builder(
-           padding: const EdgeInsets.symmetric(vertical: 8),
-           itemCount: filteredOffers.length,
-           itemBuilder: (context, index) =>
-               _buildJobOfferCard(filteredOffers[index]),
-           physics: const AlwaysScrollableScrollPhysics(),
-         );
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [_buildCollapsingAppBar('')];
       },
+      body: StreamBuilder<QuerySnapshot>(
+        stream: firestore.collection('job_offers').orderBy('createdAt', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Erreur: ${snapshot.error}'));
+          }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final offers = snapshot.data?.docs ?? [];
+
+          final query = _searchQuery.toLowerCase().trim();
+          final filteredOffers = query.isEmpty
+              ? offers
+              : offers.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final title = (data['title'] ?? '').toString().toLowerCase();
+                  final description = (data['description'] ?? '').toString().toLowerCase();
+                  final company = (data['company'] ?? '').toString().toLowerCase();
+                  return title.contains(query) ||
+                      description.contains(query) ||
+                      company.contains(query);
+                }).toList();
+
+          filteredOffers.sort((a, b) {
+            final compatA = _calculateCompatibility((a.data() as Map<String, dynamic>?) ?? {});
+            final compatB = _calculateCompatibility((b.data() as Map<String, dynamic>?) ?? {});
+            return compatB.compareTo(compatA);
+          });
+
+          if (filteredOffers.isEmpty) {
+            return Center(
+              child: Text(
+                query.isEmpty
+                    ? 'Aucune offre disponible'
+                    : 'Aucun résultat pour "$_searchQuery"',
+              ),
+            );
+          }
+
+          _queueAutoApplications(filteredOffers);
+
+          if (!mounted) return const SizedBox.shrink();
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: filteredOffers.length,
+            itemBuilder: (context, index) => _buildJobOfferCard(filteredOffers[index]),
+            physics: const AlwaysScrollableScrollPhysics(),
+          );
+        },
+      ),
     );
   }
 
@@ -1297,7 +1353,7 @@ SizedBox(
             IconButton(
               tooltip: 'Notifications',
               onPressed: _openNotificationsSheet,
-              icon: const Icon(Icons.notifications_outlined),
+              icon: const Icon(Icons.notifications_outlined, color: Colors.white),
             ),
             if (unreadCount > 0)
               Positioned(
@@ -1481,8 +1537,18 @@ SizedBox(
 
   PreferredSizeWidget _buildEmployeeAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF4CAF50),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       foregroundColor: Colors.white,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
       titleSpacing: 16,
       title: SizedBox(
         width: double.infinity,
@@ -1586,8 +1652,12 @@ SizedBox(
     return 'Bonsoir';
   }
 
-  PreferredSizeWidget _buildHomeAppBar() {
-    return AppBar(
+  SliverAppBar _buildCollapsingAppBar(String title) {
+    return SliverAppBar(
+      pinned: true,
+      floating: false,
+      expandedHeight: 72,
+      collapsedHeight: 72,
       backgroundColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
@@ -1596,50 +1666,52 @@ SizedBox(
           _scaffoldKey.currentState?.openDrawer();
         },
       ),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF87CEEB), Color(0xFF4CAF50)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      titleSpacing: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        collapseMode: CollapseMode.parallax,
+        title: _showSearchBarHome
+            ? SizedBox(
+                width: double.infinity,
+                child: TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher...',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              )
+            : title.isNotEmpty
+                ? Text(
+                    title,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  )
+                : const SizedBox.shrink(),
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
         ),
       ),
-      title: _showSearchBarHome
-          ? SizedBox(
-              width: double.infinity,
-              child: TextField(
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Rechercher...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.2),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            )
-          : const Text(
-              'Accueil',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications, color: Colors.white),
-          onPressed: () {
-            _markNotificationsAsRead();
-            _openNotificationsSheet();
-          },
-        ),
+        _buildNotificationButton(),
         IconButton(
           icon: Icon(_showSearchBarHome ? Icons.close : Icons.search, color: Colors.white),
           onPressed: () {
@@ -1705,6 +1777,15 @@ SizedBox(
                 _openCareerObjectiveSheet();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.bookmark, color: Color(0xFF4CAF50)),
+              title: const Text('Favoris'),
+              subtitle: const Text('Voir vos offres favorites'),
+              onTap: () {
+                Navigator.pop(context);
+                _openFavoritesScreen();
+              },
+            ),
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.logout, color: Color(0xFF4CAF50)),
@@ -1725,60 +1806,70 @@ SizedBox(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 16,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  height: 4,
-                  width: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder: (context) {     
+        return SafeArea(
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.45,
+            minChildSize: 0.35,
+            maxChildSize: 0.85,
+            expand: false,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                const Text(
-                  'Objectif de carrière',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _careerObjectiveController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'Ex: Travailler comme développeur Flutter',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 16,
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          height: 4,
+                          width: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const Text(
+                          'Objectif de carrière',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _careerObjectiveController,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            hintText: 'Ex: Travailler comme développeur Flutter',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            await _saveProfile('careerObjective');
+                          },
+                          child: const Text('Enregistrer l\'objectif'),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await _saveProfile('careerObjective');
-                  },
-                  child: const Text('Enregistrer l\'objectif'),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         );
       },
@@ -1919,8 +2010,12 @@ SizedBox(
   }
 
   Widget _buildHomeView() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _homeOffersStream,
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [_buildCollapsingAppBar('')];
+      },
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _homeOffersStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Erreur: ${snapshot.error}'));
@@ -2265,8 +2360,9 @@ SizedBox(
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildBottomNavItem({required IconData icon, required String label, required int index}) {
     final isSelected = _currentIndex == index;
@@ -2354,7 +2450,7 @@ SizedBox(
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildNavigationDrawer(),
-      appBar: (_currentIndex == 0 || _currentIndex == 1) ? _buildHomeAppBar() : null,
+      appBar: null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -2378,7 +2474,7 @@ SizedBox(
             ),
             _buildBottomNavItem(
               icon: phicons.PhosphorIconsRegular.briefcase,
-              label: 'Offre',
+              label: '',
               index: 1,
             ),
             _buildBottomNavItem(
@@ -2403,15 +2499,38 @@ SizedBox(
   }
 
   Widget _buildProfileView() {
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            _buildProfileHeader(),
-            Expanded(
-              child: ListView(
+        AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          title: const Text('Profil'),
+          actions: [
+            _buildNotificationButton(),
+          ],
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
+                  _buildProfileHeader(),
+                  const SizedBox(height: 12),
                   _buildProfileMenuItem(
                     icon: Icons.person,
                     label: 'Informations personnelles',
@@ -2475,32 +2594,32 @@ SizedBox(
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        if (_isLoading)
-          Container(
-            color: Colors.white.withOpacity(0.7),
-            child: const Center(
-              child: Card(
-                elevation: 8,
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Génération du CV...',
-                        style: TextStyle(fontWeight: FontWeight.w500),
+              if (_isLoading)
+                Container(
+                  color: Colors.white.withOpacity(0.7),
+                  child: const Center(
+                    child: Card(
+                      elevation: 8,
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Génération du CV...',
+                              style: TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -2566,6 +2685,61 @@ SizedBox(
             const Divider(height: 1),
             Flexible(child: child),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _openFavoritesScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: Colors.white,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+            title: const Text('Favoris'),
+          ),
+          body: StreamBuilder<QuerySnapshot>(
+            stream: firestore.collection('job_offers').orderBy('createdAt', descending: true).snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Erreur : ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final offers = snapshot.data?.docs ?? [];
+              final favoriteOffers = offers.where((doc) => _favoriteOfferIds.contains(doc.id)).toList();
+
+              if (favoriteOffers.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'Aucune offre favorite pour le moment.',
+                    style: TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: favoriteOffers.length,
+                itemBuilder: (context, index) => _buildJobOfferCard(favoriteOffers[index]),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -2639,277 +2813,271 @@ SizedBox(
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                logoUrl != null && logoUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: logoUrl,
-                        width: 40,
-                        height: 40,
-                        placeholder: (context, url) =>
-                            const CircularProgressIndicator(),
-                        errorWidget: (context, url, error) =>
-                            const Icon(Icons.work, size: 36),
-                      )
-                    : const Icon(Icons.work, size: 36),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isNew)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4CAF50),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            'Nouveau',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
+      child: InkWell(
+        onTap: () {
+          if (data != null) {
+            setState(() => _selectedOffer = {
+                  'id': offer.id,
+                  ...Map<String, dynamic>.from(data),
+                });
+          }
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        data['title'] ?? '',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (data['source'] != null) ...[
+                            Text(
+                              'Source: ${data['source']}',
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Text(
+                            'Entreprise: ${data['company'] ?? ''}',
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Localisation: ${data['city'] ?? ''}, ${data['country'] ?? ''}',
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Salaire: ${data['salary'] ?? ''}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text('Type: ${data['contract'] ?? ''}'),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Description:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(description),
+                        ],
                       ),
-                      Text(
-                        companyInfo,
-                        style: const TextStyle(color: Colors.black54, fontSize: 12),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: FilledButton.icon(
+                        onPressed: _appliedOfferIds.contains(offer.id)
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                if (data != null) {
+                                  setState(() => _selectedOffer = {
+                                        'id': offer.id,
+                                        ...Map<String, dynamic>.from(data),
+                                      });
+                                }
+                                _applyToOffer();
+                              },
+                        icon: const Icon(Icons.send),
+                        label: Text(
+                          _appliedOfferIds.contains(offer.id)
+                              ? 'Deja postule'
+                              : 'Postuler maintenant',
+                        ),
                       ),
-                      if (skillsDisplay.isNotEmpty)
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  logoUrl != null && logoUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: logoUrl,
+                          width: 40,
+                          height: 40,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(),
+                          errorWidget: (context, url, error) =>
+                              const Icon(Icons.work, size: 36),
+                        )
+                      : const Icon(Icons.work, size: 36),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isNew)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              'Nouveau',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         Text(
-                          skillsDisplay,
-                          style: const TextStyle(color: Colors.grey, fontSize: 11),
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 60,
-                  child: Column(
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: CircularProgressIndicator(
-                              value: compatibility / 100,
-                              strokeWidth: 3,
-                              backgroundColor: Colors.grey[300],
-                              color: const Color(0xFF4CAF50),
-                            ),
-                          ),
+                        Text(
+                          companyInfo,
+                          style: const TextStyle(color: Colors.black54, fontSize: 12),
+                        ),
+                        if (skillsDisplay.isNotEmpty)
                           Text(
-                            '$compatibility%',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                            skillsDisplay,
+                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: Column(
+                      children: [
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                value: compatibility / 100,
+                                strokeWidth: 3,
+                                backgroundColor: Colors.grey[300],
+                                color: const Color(0xFF4CAF50),
+                              ),
+                            ),
+                            Text(
+                              '$compatibility%',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Text(
+                          'Compatibilité',
+                          style: TextStyle(fontSize: 9, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (salary.isNotEmpty)
+                          Flexible(
+                            fit: FlexFit.loose,
+                            child: Text(
+                              '$salary / mois',
+                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ],
-                      ),
-                      const Text(
-                        'Compatibilité',
-                        style: TextStyle(fontSize: 9, color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (salary.isNotEmpty)
-                        Flexible(
-                          fit: FlexFit.loose,
-                          child: Text(
-                            '$salary / mois',
-                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        if (salary.isNotEmpty && workMode != null)
+                          const SizedBox(width: 6),
+                        if (workMode != null)
+                          Flexible(
+                            fit: FlexFit.loose,
+                            child: Text(
+                              workMode,
+                              style: const TextStyle(color: Colors.grey, fontSize: 9),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      if (salary.isNotEmpty && workMode != null)
-                        const SizedBox(width: 6),
-                      if (workMode != null)
-                        Flexible(
-                          fit: FlexFit.loose,
-                          child: Text(
-                            workMode,
-                            style: const TextStyle(color: Colors.grey, fontSize: 9),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isFavorite) {
-                        _favoriteOfferIds.remove(offer.id);
-                      } else {
-                        _favoriteOfferIds.add(offer.id);
-                      }
-                    });
-                  },
-                  child: Icon(
-                    isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                    color: const Color(0xFF4CAF50),
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                GestureDetector(
-                  onTap: () {
-                    if (data != null) {
-                      setState(() => _selectedOffer = {
-                        'id': offer.id,
-                        ...Map<String, dynamic>.from(data!),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (isFavorite) {
+                          _favoriteOfferIds.remove(offer.id);
+                        } else {
+                          _favoriteOfferIds.add(offer.id);
+                        }
                       });
-                    }
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => Container(
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.9,
-                        ),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(20),
-                          ),
-                        ),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Text(
-                                  data?['title'] ?? '',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                              const Divider(height: 1),
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    if (data?['source'] != null) ...[
-                                      Text(
-                                        'Source: ${data?['source']}',
-                                        style: const TextStyle(
-                                          color: Colors.orange,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                    Text(
-                                      'Entreprise: ${data?['company'] ?? ''}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Localisation: ${data?['city'] ?? ''}, ${data?['country'] ?? ''}',
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Salaire: ${data?['salary'] ?? ''}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('Type: ${data?['contract'] ?? ''}'),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'Description:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(description),
-                                  ],
-                                ),
-                              ),
-                              const Divider(height: 1),
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: FilledButton.icon(
-                                  onPressed: _appliedOfferIds.contains(offer.id)
-                                      ? null
-                                      : () {
-                                          Navigator.pop(context);
-                                          if (data != null) {
-                                            setState(() => _selectedOffer = {
-                                              'id': offer.id,
-                                              ...Map<String, dynamic>.from(data!),
-                                            });
-                                          }
-                                          _applyToOffer();
-                                        },
-                                  icon: const Icon(Icons.send),
-                                  label: Text(
-                                    _appliedOfferIds.contains(offer.id)
-                                        ? 'Deja postule'
-                                        : 'Postuler maintenant',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Icon(
-                    Icons.visibility_outlined,
-                    color: const Color(0xFF4CAF50),
-                    size: 18,
+                    },
+                    child: Icon(
+                      isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      color: const Color(0xFF4CAF50),
+                      size: 16,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3990,30 +4158,36 @@ SizedBox(
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final applications = (snapshot.data?.docs ?? []).where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return (data['status'] ?? '') == 'sent';
-        }).toList();
-        if (applications.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.send_outlined, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('Aucune candidature', style: TextStyle(color: Colors.grey)),
-                SizedBox(height: 8),
-                Text('Parcourez les offres et postulez', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: applications.length,
-          itemBuilder: (context, index) {
-            final data = applications[index].data() as Map<String, dynamic>;
-            final status = data['status'] ?? 'pending';
+        final applications = (snapshot.data?.docs ?? []).toList();
+      final appliedApplications = applications.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        return status == 'sent' ||
+            status == 'pending' ||
+            status == 'postulé' ||
+            status == 'postule' ||
+            status == 'applied';
+      }).toList();
+      if (appliedApplications.isEmpty) {
+        return const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.send_outlined, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text('Aucune candidature', style: TextStyle(color: Colors.grey)),
+              SizedBox(height: 8),
+              Text('Parcourez les offres et postulez', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+        );
+      }
+      return ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: appliedApplications.length,
+        itemBuilder: (context, index) {
+          final data = appliedApplications[index].data() as Map<String, dynamic>;
+          final status = data['status'] ?? 'pending';
             final statusColor = status == 'sent' 
                 ? Colors.green 
                 : status == 'accepted' 
@@ -4123,35 +4297,80 @@ SizedBox(
           'Langues: $languages. '
           'Rédige un texte professionnel et engageant de 3-4 phrases maximum.';
 
-      final response = await http.post(
-        Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBKm0szKUWlOf5zjzHXedkx9GeDo6gPf_M',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt},
-              ],
+      final Uri geminiUri = Uri.parse('https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText?key=$_gcpApiKey');
+      final Uri bisonUri = Uri.parse('https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=$_gcpApiKey');
+      Future<http.Response> postTextGeneration(Uri uri) {
+        return http.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'prompt': {
+              'text': prompt,
             },
-          ],
-        }),
-      );
+          }),
+        );
+      }
+
+      var response = await postTextGeneration(geminiUri);
+      if (response.statusCode == 404) {
+        response = await postTextGeneration(bisonUri);
+      }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final generatedText =
-            data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        String extractGeneratedText(dynamic content) {
+          if (content == null) return '';
+          if (content is String) return content.trim();
+          if (content is Map<String, dynamic>) {
+            if (content['parts'] is List) {
+              return (content['parts'] as List)
+                  .map((part) => extractGeneratedText(part['text']))
+                  .where((text) => text.isNotEmpty)
+                  .join(' ')
+                  .trim();
+            }
+            return content.values
+                .map(extractGeneratedText)
+                .where((text) => text.isNotEmpty)
+                .join(' ')
+                .trim();
+          }
+          if (content is List) {
+            return content
+                .map(extractGeneratedText)
+                .where((text) => text.isNotEmpty)
+                .join(' ')
+                .trim();
+          }
+          return '';
+        }
+
+        String generatedText = '';
+        if (data['candidates'] is List && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          generatedText = extractGeneratedText(candidate['content'] ?? candidate['output'] ?? candidate);
+        }
+        if (generatedText.isEmpty && data['output'] is Map<String, dynamic>) {
+          generatedText = extractGeneratedText((data['output'] as Map<String, dynamic>)['content']);
+        }
+        if (generatedText.isEmpty && data['content'] != null) {
+          generatedText = extractGeneratedText(data['content']);
+        }
+
         if (generatedText.isNotEmpty) {
           setState(() {
-            _aboutController.text = generatedText.trim();
+            _aboutController.text = generatedText;
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Texte généré avec succès')),
             );
           }
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun texte généré. Veuillez réessayer.')),
+          );
         }
       } else {
         final errorMsg = response.body.isNotEmpty
