@@ -418,8 +418,42 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           _profilePhotoUrl = data['profilePhotoUrl'];
           _autoApplyEnabled = data['autoApply'] ?? false;
         });
+        if (_careerObjectiveController.text.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showCareerObjectiveReminder();
+            }
+          });
+        }
       }
     } catch (e) {}
+  }
+
+  void _showCareerObjectiveReminder() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Objectif de carrière'),
+        content: const Text(
+          'Votre objectif de carrière n\'est pas renseigné. '
+          'Complétez-le pour profiter de recommandations personnalisées.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Plus tard'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _openCareerObjectiveSheet();
+            },
+            child: const Text('Renseigner'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -2497,7 +2531,7 @@ SizedBox(
             ),
             _buildBottomNavItem(
               icon: phicons.PhosphorIconsRegular.briefcase,
-              label: '',
+              label: 'Offres',
               index: 1,
             ),
             _buildBottomNavItem(
