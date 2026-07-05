@@ -868,10 +868,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     if (_experienceMonthsController.text.isNotEmpty) filled++;
     total += 10;
     if (_experienceYearsController.text.isNotEmpty) filled++;
-    total += 10;
-    if (_currentPositionController.text.isNotEmpty) filled++;
-    total += 10;
-    if (_selectedContractType != null) filled++;
+    if (_isCurrentlyWorking) {
+      total += 10;
+      if (_currentPositionController.text.isNotEmpty) filled++;
+      total += 10;
+      if (_selectedContractType != null) filled++;
+    }
     total += 10;
     if (_availabilityController.text.isNotEmpty) filled++;
     total += 10;
@@ -880,7 +882,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     if (_aboutController.text.isNotEmpty) filled++;
     total += 10;
     if (_diplomas.isNotEmpty) filled++;
-    return ((filled / total) * 100).round();
+    return total > 0 ? ((filled / total) * 100).round() : 0;
   }
 
   String _getProfileSectionTitle() {
@@ -888,8 +890,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       case 0:
         return 'Informations personnelles';
       case 1:
-        return 'Situation familiale';
-      case 2:
         return 'Situation familiale';
       case 2:
         return 'Formations & Diplômes';
@@ -945,6 +945,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profil sauvegardé avec succès')),
         );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -1832,6 +1837,7 @@ SizedBox(
             expand: false,
             builder: (context, scrollController) {
               return Container(
+                
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
