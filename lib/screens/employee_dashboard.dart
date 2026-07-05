@@ -2828,6 +2828,37 @@ SizedBox(
     return score;
   }
 
+  Widget _buildDefaultCompanyLogo(String company, {double size = 36}) {
+    final initial = company.isNotEmpty ? company[0].toUpperCase() : '?';
+    final colors = [
+      Color(0xFF4CAF50),
+      Color(0xFF2196F3),
+      Color(0xFFFF9800),
+      Color(0xFF9C27B0),
+      Color(0xFFF44336),
+      Color(0xFF00BCD4),
+    ];
+    final color = colors[company.hashCode.abs() % colors.length];
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(size * 0.15),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.45,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildJobOfferCard(QueryDocumentSnapshot offer) {
     final data = offer.data() as Map<String, dynamic>?;
     final logoUrl = data?['logoUrl'] as String?;
@@ -3004,9 +3035,9 @@ SizedBox(
                           placeholder: (context, url) =>
                               const CircularProgressIndicator(),
                           errorWidget: (context, url, error) =>
-                              const Icon(Icons.work, size: 36),
+                              _buildDefaultCompanyLogo(company, size: 36),
                         )
-                      : const Icon(Icons.work, size: 36),
+                      : _buildDefaultCompanyLogo(company, size: 36),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
