@@ -409,6 +409,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               ),
             );
           }
+          if (data['favoriteOfferIds'] != null) {
+            _favoriteOfferIds.clear();
+            _favoriteOfferIds.addAll(
+              List<String>.from(data['favoriteOfferIds'] as List),
+            );
+          }
           _profilePhotoUrl = data['profilePhotoUrl'];
           _autoApplyEnabled = data['autoApply'] ?? false;
         });
@@ -550,6 +556,16 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           .collection('jobseekers')
           .doc(userSession.userId ?? '')
           .set({'profilePhotoUrl': _profilePhotoUrl}, SetOptions(merge: true));
+    } catch (e) {}
+  }
+
+  Future<void> _persistFavorites() async {
+    if (userSession.userId == null) return;
+    try {
+      await firestore
+          .collection('jobseekers')
+          .doc(userSession.userId)
+          .set({'favoriteOfferIds': _favoriteOfferIds.toList()}, SetOptions(merge: true));
     } catch (e) {}
   }
 
@@ -3070,6 +3086,7 @@ SizedBox(
                           _favoriteOfferIds.add(offer.id);
                         }
                       });
+                      _persistFavorites();
                     },
                     child: Icon(
                       isFavorite ? Icons.bookmark : Icons.bookmark_border,
