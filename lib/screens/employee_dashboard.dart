@@ -1537,6 +1537,7 @@ SizedBox(
 
   PreferredSizeWidget _buildEmployeeAppBar() {
     return AppBar(
+      toolbarHeight: 32,
       backgroundColor: Colors.transparent,
       elevation: 0,
       foregroundColor: Colors.white,
@@ -1651,13 +1652,13 @@ SizedBox(
     if (hour < 18) return 'Bon après-midi';
     return 'Bonsoir';
   }
-
+// appbar
   SliverAppBar _buildCollapsingAppBar(String title) {
     return SliverAppBar(
       pinned: true,
       floating: false,
-      expandedHeight: 72,
-      collapsedHeight: 72,
+      expandedHeight: 60,
+      collapsedHeight: 60,
       backgroundColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
@@ -1703,7 +1704,7 @@ SizedBox(
         background: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+              colors: [Color(0xFF87CEEB), Color.fromARGB(255, 146, 252, 151)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -2502,13 +2503,14 @@ SizedBox(
     return Column(
       children: [
         AppBar(
+          toolbarHeight: 32,
           backgroundColor: Colors.transparent,
           elevation: 0,
           automaticallyImplyLeading: false,
           flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+                colors: [Color(0xFF87CEEB), Color.fromARGB(255, 145, 252, 151)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -2664,7 +2666,7 @@ SizedBox(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              margin: const EdgeInsets.only(top: 12),
+              margin: const EdgeInsets.only(top: 8),
               width: 40,
               height: 4,
               decoration: BoxDecoration(
@@ -2673,11 +2675,11 @@ SizedBox(
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -2696,13 +2698,14 @@ SizedBox(
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(
+            toolbarHeight: 32,
             backgroundColor: Colors.transparent,
             elevation: 0,
             foregroundColor: Colors.white,
             flexibleSpace: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF87CEEB), Color(0xFF2E7D32)],
+                  colors: [Color(0xFF87CEEB), Color.fromARGB(255, 96, 240, 103)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
