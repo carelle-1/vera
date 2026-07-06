@@ -1159,16 +1159,414 @@ class _AdminDashboardState extends State<AdminDashboard> {
           itemBuilder: (context, index) {
             final company = companies[index];
             final data = company.data() as Map<String, dynamic>?;
+            final status = data?['status'] as String? ?? 'pending';
+            final email = data?['email'] ?? 'Entreprise';
+            final name = data?['name'] ?? email;
+
+            Color statusColor;
+            String statusLabel;
+            switch (status) {
+              case 'approved':
+                statusColor = Colors.green;
+                statusLabel = 'Validé';
+              case 'rejected':
+                statusColor = Colors.red;
+                statusLabel = 'Rejeté';
+              default:
+                statusColor = Colors.orange;
+                statusLabel = 'En attente';
+            }
+
             return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
               child: ListTile(
                 leading: const Icon(Icons.business, color: Color(0xFF00BCD4)),
-                title: Text(data?['email'] ?? 'Entreprise'),
-                subtitle: Text(data?['role'] ?? ''),
+                title: Text(name),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(email),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.visibility, color: Colors.blue),
+                  onPressed: () => _openCompanyDetailSheet(company.id, data),
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  void _openCompanyDetailSheet(String companyId, Map<String, dynamic>? data) {
+    final documentUrl = data?['documentUrl'] as String?;
+    final status = data?['status'] as String? ?? 'pending';
+    final rejectionReason = data?['rejectionReason'] as String? ?? '';
+    final email = data?['email'] ?? '';
+    final name = data?['name'] ?? '';
+    final rejectionController = TextEditingController(text: rejectionReason);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  height: 4,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  email,
+                  style: const TextStyle(fontSize: 14, color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Document d\'enregistrement',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                if (documentUrl != null && documentUrl.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _showDocumentPreview(documentUrl);
+                    },
+                    child: Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: _isImageUrl(documentUrl)
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                documentUrl,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 200,
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                                          SizedBox(height: 8),
+                                          Text('Impossible de charger le document'),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          : InkWell(
+                              onTap: () {
+                                _showDocumentPreview(documentUrl);
+                              },
+                              child: Container(
+                                height: 200,
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.description, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text('Ouvrir le document'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  )
+                else
+                  Container(
+                    height: 200,
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Text('Aucun document disponible'),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                if (status == 'pending') ...[
+                  const Text(
+                    'Motif de rejet (optionnel)',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: rejectionController,
+                    decoration: InputDecoration(
+                      hintText: 'Raison du rejet...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : () async {
+                            await _reviewCompany(companyId, 'approved');
+                            if (context.mounted) Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.check),
+                          label: const Text('Valider'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  final reason = rejectionController.text.trim();
+                                  if (reason.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Veuillez saisir un motif de rejet',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  await _reviewCompany(companyId, 'rejected', reason);
+                                  if (context.mounted) Navigator.pop(context);
+                                },
+                          icon: const Icon(Icons.close),
+                          label: const Text('Rejeter'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: status == 'approved'
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          status == 'approved'
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: status == 'approved' ? Colors.green : Colors.red,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            status == 'approved'
+                                ? 'Compte validé'
+                                : 'Compte rejeté : $rejectionReason',
+                            style: TextStyle(
+                              color: status == 'approved'
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reviewCompany(String companyId, String decision, [String? reason]) async {
+    setState(() => _isLoading = true);
+    try {
+      final updates = <String, dynamic>{
+        'status': decision,
+        'reviewedAt': FieldValue.serverTimestamp(),
+        'reviewedBy': userSession.userId,
+      };
+
+      if (decision == 'rejected') {
+        updates['rejectionReason'] = reason ?? '';
+      }
+
+      await firestore.collection('users').doc(companyId).update(updates);
+
+      final companyDoc = await firestore.collection('users').doc(companyId).get();
+      final companyData = companyDoc.data();
+      final companyFcmToken = companyData?['fcmToken'] as String?;
+      final companyName = companyData?['name'] ?? 'Entreprise';
+
+      if (companyFcmToken != null && companyFcmToken.isNotEmpty) {
+        await _sendCompanyNotification(
+          companyFcmToken,
+          decision == 'approved' ? 'Compte validé' : 'Compte rejeté',
+          decision == 'approved'
+              ? 'Votre compte entreprise a été validé par l\'administrateur.'
+              : 'Votre compte entreprise a été rejeté : ${reason ?? "Raison non spécifiée"}',
+        );
+      }
+
+      await firestore.collection('company_notifications').add({
+        'userId': companyId,
+        'title': decision == 'approved' ? 'Compte validé' : 'Compte rejeté',
+        'body': decision == 'approved'
+            ? 'Votre compte entreprise a été validé par l\'administrateur.'
+            : 'Votre compte entreprise a été rejeté : ${reason ?? "Raison non spécifiée"}',
+        'type': decision == 'approved' ? 'validation_approved' : 'validation_rejected',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              decision == 'approved'
+                  ? 'Entreprise validée'
+                  : 'Entreprise rejetée',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _sendCompanyNotification(
+    String token,
+    String title,
+    String body,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.189.89/VERA/send_notification.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'token': token,
+          'title': title,
+          'body': body,
+        }),
+      );
+    } catch (e) {
+    }
+  }
+
+  bool _isImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp');
+  }
+
+  void _showDocumentPreview(String url) {
+    if (!_isImageUrl(url)) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: InteractiveViewer(
+          child: Image.network(
+            url,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 

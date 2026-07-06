@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 enum UserRole { employee, company, admin }
 
@@ -63,6 +66,30 @@ class UserSession extends ChangeNotifier {
     }
   }
 
+  Future<String?> _uploadDocumentToCloudinary(String filePath) async {
+    final file = File(filePath);
+    final bytes = await file.readAsBytes();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('https://api.cloudinary.com/v1_1/demjpkcfj/auto/upload'),
+    );
+    request.fields['upload_preset'] = 'vera2026';
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filePath.split('/').last,
+      ),
+    );
+    final response = await request.send();
+    final respStr = await response.stream.bytesToString();
+    if (response.statusCode == 200) {
+      final data = jsonDecode(respStr);
+      return data['secure_url'] as String?;
+    }
+    return null;
+  }
+
   Future<void> registerWithEmail(
     String email,
     String password,
@@ -71,6 +98,21 @@ class UserSession extends ChangeNotifier {
     String? documentPath,
   ) async {
     try {
+      String? documentUrl;
+      String? companyStatus;
+      String? rejectionReason;
+
+      if (role == UserRole.company) {
+        if (documentPath == null || documentPath.isEmpty) {
+          throw Exception('Document requis pour les entreprises');
+        }
+        documentUrl = await _uploadDocumentToCloudinary(documentPath);
+        if (documentUrl == null) {
+          throw Exception('Erreur lors de l\'upload du document');
+        }
+        companyStatus = 'pending';
+      }
+
       final userCredential = await auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -78,12 +120,24 @@ class UserSession extends ChangeNotifier {
       final user = userCredential.user;
       if (user != null) {
         final uid = user.uid;
-        await firestore.collection('users').doc(uid).set({
+        final data = {
           'email': email,
           'name': name,
           'role': role.name,
           'createdAt': FieldValue.serverTimestamp(),
-        });
+          'status': companyStatus,
+          'documentUrl': documentUrl,
+          'rejectionReason': rejectionReason,
+          'reviewedAt': null,
+          'reviewedBy': null,
+        };
+        if (companyStatus == 'pending') {
+          data['companyProfile'] = {
+            'documentUrl': documentUrl,
+            'documentType': 'kbis',
+          };
+        }
+        await firestore.collection('users').doc(uid).set(data);
         login(role, uid);
       }
     } catch (e) {

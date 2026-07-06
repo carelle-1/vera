@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -30,11 +30,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _pickDocument() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
+    final result = await FilePicker.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.single.path != null) {
       setState(() {
-        _documentPath = picked.path;
+        _documentPath = result.files.single.path;
       });
     }
   }
