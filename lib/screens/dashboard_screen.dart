@@ -94,6 +94,18 @@ class PendingCompanyScreen extends StatelessWidget {
         title: const Text('Espace entreprise'),
         backgroundColor: const Color(0xFF00BCD4),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Se déconnecter',
+            onPressed: () async {
+              await userSession.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              }
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       body: Center(
         child: Padding(
