@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../auth_service.dart';
 
 class CompanyDashboard extends StatefulWidget {
@@ -22,6 +25,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   Stream<QuerySnapshot>? _notificationStream;
   Stream<QuerySnapshot>? _jobseekersStream;
+  Stream<QuerySnapshot>? _solicitationsStream;
 
   int _currentIndex = 0;
 
@@ -74,6 +78,12 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     _saveFcmToken();
     _loadCompanyProfile();
     _jobseekersStream = firestore.collection('jobseekers').snapshots();
+    _solicitationsStream = userSession.userId != null
+        ? firestore
+            .collection('solicitations')
+            .where('companyId', isEqualTo: userSession.userId)
+            .snapshots()
+        : null;
   }
 
   @override
@@ -836,7 +846,27 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                       ),
                       title: Text(name.isNotEmpty ? name : email),
                       subtitle: Text(email),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: ElevatedButton(
+                        onPressed: () => _solicitJobSeeker(user.id, name.isEmpty ? email : name),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE8F5E9),
+                          foregroundColor: const Color(0xFF2E7D32),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text(
+                          'Sollicité',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       onTap: () =>
                           _openJobSeekerDetail(user.id, data),
                     ),
@@ -927,6 +957,21 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         ),
                       ],
                       const SizedBox(height: 20),
+                      Center(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _generateCVForJobseeker(userId);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE8F5E9),
+                            foregroundColor: const Color(0xFF2E7D32),
+                          ),
+                          icon: const Icon(Icons.picture_as_pdf),
+                          label: const Text('Voir le CV'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Center(
                         child: TextButton(
                           onPressed: () => Navigator.pop(context),
@@ -1315,6 +1360,498 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Future<void> _sendPushNotification(String token, String title, String body) async {
+    try {
+      await http.post(
+        Uri.parse('http://192.168.189.89/VERA/send_notification.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'token': token,
+          'title': title,
+          'body': body,
+        }),
+      );
+    } catch (e) {}
+  }
+
+  Future<void> _solicitJobSeeker(String userId, String userName) async {
+    if (userSession.userId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final companyName = _nameController.text.trim().isNotEmpty
+          ? _nameController.text.trim()
+          : 'Entreprise';
+
+      await firestore.collection('solicitations').add({
+        'companyId': userSession.userId,
+        'jobseekerId': userId,
+        'companyName': companyName,
+        'jobseekerName': userName,
+        'status': 'sent',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await firestore.collection('jobseeker_notifications').add({
+        'userId': userId,
+        'title': 'Nouvelle sollicitation',
+        'body': '$companyName est intéressé par votre profil.',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      final userDoc = await firestore.collection('users').doc(userId).get();
+      final fcmToken = userDoc.data()?['fcmToken'] as String?;
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await _sendPushNotification(
+          fcmToken,
+          'Nouvelle sollicitation',
+          '$companyName est intéressé par votre profil.',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sollicitation envoyée')),
+        );
+      }
+
+      await _generateCVForJobseeker(userId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  pw.Widget _buildPdfSection({required String title, required List<pw.Widget> children}) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: PdfColor(0.91, 0.96, 0.93),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            title,
+            style: pw.TextStyle(
+              fontSize: 13,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor(0.3, 0.69, 0.31),
+            ),
+          ),
+          pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 1, height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 110,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(value.isEmpty ? '-' : value, style: pw.TextStyle(fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateCVForJobseeker(String userId) async {
+    setState(() => _isLoading = true);
+    bool loadingDismissed = false;
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => WillPopScope(
+          onWillPop: () async => false,
+          child: const Dialog(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 24),
+                  Text('Génération du CV...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    try {
+      final userDoc = await firestore.collection('users').doc(userId).get();
+      final profileDoc = await firestore.collection('jobseekers').doc(userId).get();
+
+      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+      final profileData = profileDoc.data() as Map<String, dynamic>? ?? {};
+
+      final name = '${profileData['firstName'] ?? ''} ${profileData['lastName'] ?? ''}'.trim();
+      final email = userData['email'] ?? profileData['email'] ?? '';
+      final phone = profileData['phone'] ?? '';
+      final city = profileData['city'] ?? '';
+      final country = profileData['country'] ?? '';
+      final about = profileData['about'] ?? '';
+      final languages = (profileData['languages'] as List?)?.map((l) => l['name'] ?? '').join(', ') ?? '';
+      final experienceYears = profileData['experienceYears'] ?? '';
+      final experienceMonths = profileData['experienceMonths'] ?? '';
+      final currentPosition = profileData['currentPosition'] ?? '';
+      final currentSalary = profileData['currentSalary'] ?? '';
+      final contractType = profileData['contractType'] ?? 'Non renseigné';
+      final availability = profileData['availability'] ?? '';
+      final desiredSalary = profileData['desiredSalary'] ?? '';
+      final workMode = profileData['workMode'] ?? 'Non renseigné';
+      final diplomas = (profileData['diplomas'] as List?)?.map((d) {
+        final name = d['name'] ?? '';
+        final date = d['date'] ?? '';
+        final school = d['school'] ?? '';
+        final parts = [name];
+        if (date.isNotEmpty) parts.add('($date)');
+        if (school.isNotEmpty) parts.add('- $school');
+        return parts.join(' ');
+      }).join('\n') ?? 'Aucun diplôme renseigné';
+
+      final pdf = pw.Document();
+
+      pw.MemoryImage? profileImage;
+      final photoUrl = profileData['profilePhotoUrl'] ?? userData['profilePhotoUrl'];
+      if (photoUrl != null && photoUrl.toString().isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(photoUrl.toString()));
+          if (response.statusCode == 200) {
+            profileImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {}
+      }
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    if (profileImage != null)
+                      pw.Container(
+                        width: 90,
+                        height: 90,
+                        decoration: const pw.BoxDecoration(
+                          shape: pw.BoxShape.circle,
+                        ),
+                        child: pw.ClipOval(
+                          child: pw.Image(profileImage, width: 90, height: 90, fit: pw.BoxFit.cover),
+                        ),
+                      )
+                    else
+                      pw.Container(
+                        width: 90,
+                        height: 90,
+                        decoration: const pw.BoxDecoration(
+                          shape: pw.BoxShape.circle,
+                          color: PdfColor(0.9, 0.9, 0.9),
+                        ),
+                        child: pw.Center(
+                          child: pw.Text('?', style: pw.TextStyle(fontSize: 32, color: PdfColor(0.5, 0.5, 0.5))),
+                        ),
+                      ),
+                    pw.SizedBox(width: 24),
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            name.isEmpty ? 'Candidat' : name,
+                            style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: PdfColor(0.13, 0.13, 0.13)),
+                          ),
+                          if (email.isNotEmpty) pw.Text(email, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                          if (phone.isNotEmpty) pw.Text(phone, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                          if (city.isNotEmpty || country.isNotEmpty)
+                            pw.Text('$city, $country', style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 24),
+                pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 2),
+                pw.SizedBox(height: 16),
+                _buildPdfSection(title: 'INFORMATIONS PERSONNELLES', children: [
+                  _buildPdfRow('Email', email),
+                  _buildPdfRow('Téléphone', phone),
+                  _buildPdfRow('Localisation', '$city, $country'),
+                ]),
+                _buildPdfSection(title: 'EXPÉRIENCE PROFESSIONNELLE', children: [
+                  if (currentPosition.isNotEmpty) _buildPdfRow('Poste actuel', currentPosition),
+                  _buildPdfRow('Expérience', '$experienceYears ans, $experienceMonths mois'),
+                  if (currentSalary.isNotEmpty) _buildPdfRow('Salaire actuel', currentSalary),
+                  _buildPdfRow('Type de contrat', contractType),
+                  if (availability.isNotEmpty) _buildPdfRow('Disponibilité', availability),
+                ]),
+                _buildPdfSection(title: 'FORMATIONS & DIPLÔMES', children: [
+                  if (diplomas.isNotEmpty && diplomas != 'Aucun diplôme renseigné')
+                    pw.Text(diplomas, style: pw.TextStyle(fontSize: 11))
+                  else
+                    pw.Text('Aucun diplôme renseigné', style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+                ]),
+                _buildPdfSection(title: 'LANGUES & LOISIRS', children: [
+                  if (languages.isNotEmpty) _buildPdfRow('Langues', languages),
+                ]),
+                _buildPdfSection(title: 'PRÉFÉRENCES', children: [
+                  if (desiredSalary.isNotEmpty) _buildPdfRow('Salaire souhaité', desiredSalary),
+                  _buildPdfRow('Mode de travail', workMode),
+                ]),
+                if (about.isNotEmpty)
+                  _buildPdfSection(title: 'À PROPOS', children: [
+                    pw.Text(about, style: pw.TextStyle(fontSize: 11)),
+                  ]),
+              ],
+            );
+          },
+        ),
+      );
+
+      final fcmToken = userData['fcmToken'] as String?;
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await _sendPushNotification(
+          fcmToken,
+          'CV consulté',
+          'Votre CV a été consulté par une entreprise.',
+        );
+      }
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        loadingDismissed = true;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Dialog(
+            insetPadding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                Expanded(
+                  child: PdfPreview(
+                    build: (PdfPageFormat format) => pdf.save(),
+                  ),
+                ),
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final bytes = await pdf.save();
+                            Printing.sharePdf(
+                              bytes: bytes,
+                              filename: 'cv_${name.replaceAll(' ', '_').toLowerCase()}.pdf',
+                            );
+                          },
+                          icon: const Icon(Icons.share),
+                          label: const Text('Partager PDF'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00BCD4),
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Messagerie en cours de développement')),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE8F5E9),
+                            foregroundColor: const Color(0xFF2E7D32),
+                          ),
+                          child: const Text('Discuter avec l\'utilisateur'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[200],
+                            foregroundColor: Colors.black87,
+                          ),
+                          child: const Text('Annuler'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        if (!loadingDismissed) {
+          Navigator.of(context, rootNavigator: true).pop();
+          loadingDismissed = true;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur génération CV: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        if (!loadingDismissed) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Widget _buildMessagesView() {
+    if (userSession.userId == null) {
+      return const Center(child: Text('Non connecté'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore
+          .collection('messages')
+          .where('participants', arrayContains: userSession.userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final messages = snapshot.data?.docs ?? [];
+        if (messages.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Aucun message', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final data = messages[index].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: ListTile(
+                leading: const Icon(Icons.chat, color: Color(0xFF00BCD4)),
+                title: Text(data['lastMessage'] ?? 'Message'),
+                subtitle: Text('De: ${data['senderName'] ?? ''}', style: const TextStyle(color: Colors.grey)),
+                trailing: Text(
+                  data['createdAt'] != null
+                      ? (data['createdAt'] as Timestamp).toDate().toString().substring(0, 10)
+                      : '',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSolicitationsTab() {
+    if (userSession.userId == null) {
+      return const Center(child: Text('Non connecté'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _solicitationsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data?.docs ?? [];
+        final solicitations = List.from(docs);
+        solicitations.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aDate = (aData['createdAt'] as Timestamp?)?.toDate();
+          final bDate = (bData['createdAt'] as Timestamp?)?.toDate();
+          return (bDate ?? DateTime(1970)).compareTo(aDate ?? DateTime(1970));
+        });
+        if (solicitations.isEmpty) {
+          return const Center(
+            child: Text('Aucune sollicitation envoyée'),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: solicitations.length,
+          itemBuilder: (context, index) {
+            final solicitation = solicitations[index];
+            final data = solicitation.data() as Map<String, dynamic>;
+            final jobseekerId = data['jobseekerId'] ?? '';
+            final jobseekerName = data['jobseekerName'] ?? 'Chercheur d\'emploi';
+            final createdAt = data['createdAt'] as Timestamp?;
+            final dateStr = createdAt != null
+                ? '${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}'
+                : '';
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF00BCD4),
+                  child: Icon(Icons.person, color: Colors.white),
+                ),
+                title: Text(jobseekerName),
+                subtitle: Text(dateStr.isNotEmpty ? 'Sollicité le $dateStr' : ''),
+                trailing: ElevatedButton(
+                  onPressed: () => _generateCVForJobseeker(jobseekerId),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE8F5E9),
+                    foregroundColor: const Color(0xFF2E7D32),
+                  ),
+                  child: const Text('Voir CV'),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
@@ -1371,7 +1908,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           _buildUsersTab(),
           _buildOffersTab(),
           _buildSettingsTab(),
-          _buildGlobalCompatibility(),
+          _buildMessagesView(),
+          _buildSolicitationsTab(),
         ],
       ),
       floatingActionButton: _currentIndex == 1 && !_showOfferForm
@@ -1388,6 +1926,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFF00BCD4),
+        unselectedItemColor: Colors.black,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(
@@ -1403,8 +1942,12 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             label: 'Paramètres',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.insights),
-            label: 'Compatibilité',
+            icon: Icon(Icons.chat),
+            label: 'Messagerie',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.mark_email_read),
+            label: 'Candidatures',
           ),
         ],
       ),

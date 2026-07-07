@@ -367,7 +367,7 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 4), 
                               const Text(
                                 'Compatibilité',
                                 style: TextStyle(fontSize: 9, color: Colors.black54),
