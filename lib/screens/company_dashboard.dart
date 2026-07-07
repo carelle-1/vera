@@ -21,6 +21,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       FlutterLocalNotificationsPlugin();
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   Stream<QuerySnapshot>? _notificationStream;
+  Stream<QuerySnapshot>? _jobseekersStream;
 
   int _currentIndex = 0;
 
@@ -72,6 +73,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     _initNotifications();
     _saveFcmToken();
     _loadCompanyProfile();
+    _jobseekersStream = firestore.collection('jobseekers').snapshots();
   }
 
   @override
@@ -1094,6 +1096,226 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   }
 
   // ---------------------------------------------------------------------------
+  // COMPATIBILITÉ (risques d'incompatibilité agrégés)
+  // ---------------------------------------------------------------------------
+  int _computeGlobalCompatibility(List<QueryDocumentSnapshot> docs) {
+    if (docs.isEmpty) return 0;
+    const int fields = 12;
+    int totalFilled = 0;
+    for (final d in docs) {
+      final data = d.data() as Map<String, dynamic>? ?? {};
+      int filled = 0;
+      if ((data['firstName'] ?? '').toString().isNotEmpty ||
+          (data['lastName'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['phone'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['city'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['country'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['languages'] as List?)?.isNotEmpty ?? false) filled++;
+      if ((data['diplomas'] as List?)?.isNotEmpty ?? false) filled++;
+      if ((data['experienceYears'] ?? '').toString().isNotEmpty ||
+          (data['experienceMonths'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['desiredSalary'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['about'] ?? '').toString().isNotEmpty) filled++;
+      if ((data['skills'] as List?)?.isNotEmpty ?? false) filled++;
+      if ((data['autoApply'] ?? false) == true) filled++;
+      totalFilled += filled;
+    }
+    return ((totalFilled / (docs.length * fields)) * 100).round();
+  }
+
+  List<String> _detectRisks(List<QueryDocumentSnapshot> docs) {
+    final risks = <String>[];
+    if (docs.isEmpty) {
+      risks.add('Aucun chercheur d\'emploi enregistré.');
+      return risks;
+    }
+    int missingName = 0,
+        missingPhone = 0,
+        missingCity = 0,
+        missingCountry = 0,
+        missingLang = 0,
+        missingDiploma = 0,
+        missingExp = 0,
+        missingSalary = 0,
+        missingAbout = 0,
+        missingSkill = 0,
+        autoOff = 0;
+    for (final d in docs) {
+      final data = d.data() as Map<String, dynamic>? ?? {};
+      if ((data['firstName'] ?? '').toString().isEmpty &&
+          (data['lastName'] ?? '').toString().isEmpty) missingName++;
+      if ((data['phone'] ?? '').toString().isEmpty) missingPhone++;
+      if ((data['city'] ?? '').toString().isEmpty) missingCity++;
+      if ((data['country'] ?? '').toString().isEmpty) missingCountry++;
+      if ((data['languages'] as List?)?.isEmpty ?? true) missingLang++;
+      if ((data['diplomas'] as List?)?.isEmpty ?? true) missingDiploma++;
+      if ((data['experienceYears'] ?? '').toString().isEmpty &&
+          (data['experienceMonths'] ?? '').toString().isEmpty) missingExp++;
+      if ((data['desiredSalary'] ?? '').toString().isEmpty) missingSalary++;
+      if ((data['about'] ?? '').toString().isEmpty) missingAbout++;
+      if ((data['skills'] as List?)?.isEmpty ?? true) missingSkill++;
+      if ((data['autoApply'] ?? false) != true) autoOff++;
+    }
+    void addIf(int count, String label) {
+      if (count > 0) risks.add('$count profil(s) : $label');
+    }
+
+    addIf(missingName, 'nom/prénom manquant');
+    addIf(missingPhone, 'téléphone non renseigné');
+    addIf(missingCity, 'ville non renseignée');
+    addIf(missingCountry, 'pays non renseigné');
+    addIf(missingLang, 'aucune langue renseignée');
+    addIf(missingDiploma, 'aucun diplôme renseigné');
+    addIf(missingExp, 'expérience non renseignée');
+    addIf(missingSalary, 'salaire souhaité non renseigné');
+    addIf(missingAbout, 'section « à propos » vide');
+    addIf(missingSkill, 'compétences non renseignées');
+    addIf(autoOff, 'candidature automatique désactivée');
+    return risks;
+  }
+
+  Widget _buildGlobalCompatibility() {
+    if (_jobseekersStream == null) {
+      return const Center(child: Text('Non connecté'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _jobseekersStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data?.docs ?? [];
+        final score = _computeGlobalCompatibility(docs);
+        final risks = _detectRisks(docs);
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 110,
+                        height: 110,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: score / 100,
+                              strokeWidth: 10,
+                              backgroundColor: Colors.grey[300],
+                              color: const Color(0xFF00BCD4),
+                            ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$score%',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Text(
+                                  'compatibilité',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Score global de compatibilité',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Calculé sur ${docs.length} chercheur(s) d\'emploi',
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Basé sur la complétude des profils et l\'activation '
+                              'de la candidature automatique.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Risques d\'incompatibilité détectés',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (risks.isEmpty)
+                        const Text(
+                          'Aucun risque détecté. Les profils sont bien renseignés.',
+                          style: TextStyle(color: Colors.green),
+                        )
+                      else
+                        ...risks.map(
+                          (r) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.warning_amber,
+                                    color: Colors.orange, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(r)),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
   @override
@@ -1149,6 +1371,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           _buildUsersTab(),
           _buildOffersTab(),
           _buildSettingsTab(),
+          _buildGlobalCompatibility(),
         ],
       ),
       floatingActionButton: _currentIndex == 1 && !_showOfferForm
@@ -1178,6 +1401,10 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Paramètres',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.insights),
+            label: 'Compatibilité',
           ),
         ],
       ),

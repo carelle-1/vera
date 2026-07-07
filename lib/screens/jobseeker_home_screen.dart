@@ -341,23 +341,37 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: SizedBox(
-                          width: 50,
-                          height: 50,
-                          child: Stack(
-                            alignment: Alignment.center,
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircularProgressIndicator(
-                                value: compatibility / 100,
-                                strokeWidth: 4,
-                                backgroundColor: Colors.grey[300],
-                                color: const Color(0xFF4CAF50),
-                              ),
-                              Text(
-                                '$compatibility%',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                              SizedBox(
+                                width: 50,
+                                height: 50,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      value: compatibility / 100,
+                                      strokeWidth: 4,
+                                      backgroundColor: Colors.grey[300],
+                                      color: const Color(0xFF4CAF50),
+                                    ),
+                                    Text(
+                                      '$compatibility%',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Compatibilité',
+                                style: TextStyle(fontSize: 9, color: Colors.black54),
+                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
@@ -369,44 +383,32 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Row(
                       children: [
-                        if (data['salary'] != null &&
-                            data['salary'].toString().isNotEmpty)
-                          Text(
-                            '${data['salary']} / mois',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                            ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              if (data['salary'] != null &&
+                                  data['salary'].toString().isNotEmpty)
+                                Text(
+                                  '${data['salary']} / mois',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              if (data['salary'] != null &&
+                                  data['salary'].toString().isNotEmpty &&
+                                  data['contract'] != null &&
+                                  data['contract'].toString().isNotEmpty)
+                                const SizedBox(width: 12),
+                              if (data['contract'] != null &&
+                                  data['contract'].toString().isNotEmpty)
+                                Text(
+                                  data['contract'] == 'Temps partiel'
+                                      ? 'Temps partiel'
+                                      : 'Temps plein',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                            ],
                           ),
-                        if (data['salary'] != null &&
-                            data['salary'].toString().isNotEmpty &&
-                            data['contract'] != null &&
-                            data['contract'].toString().isNotEmpty)
-                          const SizedBox(width: 12),
-                        if (data['contract'] != null &&
-                            data['contract'].toString().isNotEmpty)
-                          Text(
-                            data['contract'] == 'Temps partiel'
-                                ? 'Temps partiel'
-                                : 'Temps plein',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        const Spacer(),
-                        IconButton(
-                          icon: Icon(
-                            _favoriteOfferIds.contains(offers[index].id)
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            color: const Color(0xFF4CAF50),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              if (_favoriteOfferIds.contains(offers[index].id)) {
-                                _favoriteOfferIds.remove(offers[index].id);
-                              } else {
-                                _favoriteOfferIds.add(offers[index].id);
-                              }
-                            });
-                          },
                         ),
                         IconButton(
                           icon: const Icon(

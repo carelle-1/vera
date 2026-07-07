@@ -3128,7 +3128,10 @@ SizedBox(
                             fit: FlexFit.loose,
                             child: Text(
                               '$salary / mois',
-                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 10,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -3148,21 +3151,26 @@ SizedBox(
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (isFavorite) {
-                          _favoriteOfferIds.remove(offer.id);
-                        } else {
-                          _favoriteOfferIds.add(offer.id);
-                        }
-                      });
-                      _persistFavorites();
-                    },
-                    child: Icon(
-                      isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                      color: const Color(0xFF4CAF50),
-                      size: 16,
+                  SizedBox(
+                    width: 60,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (isFavorite) {
+                              _favoriteOfferIds.remove(offer.id);
+                            } else {
+                              _favoriteOfferIds.add(offer.id);
+                            }
+                          });
+                          _persistFavorites();
+                        },
+                        child: Icon(
+                          isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                          color: const Color(0xFF4CAF50),
+                          size: 22,
+                        ),
+                      ),
                     ),
                   ),
                 ],
