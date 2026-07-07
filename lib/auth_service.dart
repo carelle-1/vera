@@ -66,7 +66,7 @@ class UserSession extends ChangeNotifier {
     }
   }
 
-  Future<String?> _uploadDocumentToCloudinary(String filePath) async {
+  Future<String?> uploadDocumentToCloudinary(String filePath) async {
     final file = File(filePath);
     final bytes = await file.readAsBytes();
     final request = http.MultipartRequest(
@@ -78,7 +78,7 @@ class UserSession extends ChangeNotifier {
       http.MultipartFile.fromBytes(
         'file',
         bytes,
-        filename: filePath.split('/').last,
+        filename: filePath.replaceAll('\\', '/').split('/').last,
       ),
     );
     final response = await request.send();
@@ -106,7 +106,7 @@ class UserSession extends ChangeNotifier {
         if (documentPath == null || documentPath.isEmpty) {
           throw Exception('Document requis pour les entreprises');
         }
-        documentUrl = await _uploadDocumentToCloudinary(documentPath);
+        documentUrl = await uploadDocumentToCloudinary(documentPath);
         if (documentUrl == null) {
           throw Exception('Erreur lors de l\'upload du document');
         }

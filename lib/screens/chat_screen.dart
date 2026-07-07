@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:phosphoricons_flutter/phosphoricons_flutter.dart' as phicons;
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../auth_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -23,6 +27,10 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ImagePicker _imagePicker = ImagePicker();
+  int _unreadCount = 0;
+
+  bool _isUploading = false;
 
   @override
   void dispose() {
@@ -31,17 +39,28 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || userSession.userId == null) return;
-
+  Future<void> _markAsRead() async {
+    if (userSession.userId == null) return;
     final conversationRef = FirebaseFirestore.instance
         .collection('messages')
         .doc(widget.conversationId);
+    await conversationRef.update({
+      'unreadCount_${userSession.userId}': 0,
+    });
+  }
 
-    final messageRef = conversationRef.collection('chat_messages').doc();
+  Future<void> _sendMessage({String? text, String? type, String? fileUrl, String? fileName}) async {
+    final messageText = (text ?? '').trim();
+    if (messageText.isEmpty && type == null) return;
+    if (userSession.userId == null) return;
 
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
+    try {
+      final conversationRef = FirebaseFirestore.instance
+          .collection('messages')
+          .doc(widget.conversationId);
+
+      final messageRef = conversationRef.collection('chat_messages').doc();
+
       final senderDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userSession.userId)
@@ -50,24 +69,155 @@ class _ChatScreenState extends State<ChatScreen> {
       final senderName =
           (senderData['name'] ?? senderData['email'] ?? userSession.userId ?? 'Utilisateur').toString();
 
-      transaction.set(messageRef, {
+      final messageData = <String, dynamic>{
         'senderId': userSession.userId,
         'senderName': senderName,
-        'text': text,
         'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      if (type != null) {
+        messageData['type'] = type;
+        if (fileUrl != null) messageData['fileUrl'] = fileUrl;
+        if (fileName != null) messageData['fileName'] = fileName;
+      }
+      if (messageText.isNotEmpty) {
+        messageData['text'] = messageText;
+      }
+
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        transaction.set(messageRef, messageData);
+
+        final displayMessage = type != null && messageText.isEmpty
+            ? (type == 'image' ? 'Photo' : (fileName ?? 'Fichier'))
+            : messageText;
+
+        final participants = [userSession.userId, widget.otherUserId]..sort();
+        transaction.set(conversationRef, {
+          'participants': participants,
+          'lastMessage': displayMessage,
+          'senderName': senderName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'unreadCount_${widget.otherUserId}': FieldValue.increment(1),
+          'unreadCount_${userSession.userId}': 0,
+        }, SetOptions(merge: true));
       });
 
-      final participants = [userSession.userId, widget.otherUserId]..sort();
-      transaction.set(conversationRef, {
-        'participants': participants,
-        'lastMessage': text,
-        'senderName': senderName,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    });
+      _messageController.clear();
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur envoi message: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
-    _messageController.clear();
-    _scrollToBottom();
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      setState(() => _isUploading = true);
+      final picked = await _imagePicker.pickImage(source: source, imageQuality: 80);
+      if (picked == null) {
+        setState(() => _isUploading = false);
+        return;
+      }
+
+      final url = await userSession.uploadDocumentToCloudinary(picked.path);
+      setState(() => _isUploading = false);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erreur lors de l\'envoi de l\'image')),
+          );
+        }
+        return;
+      }
+
+      await _sendMessage(type: 'image', fileUrl: url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  Future<void> _pickAndSendFile() async {
+    try {
+      setState(() => _isUploading = true);
+      final result = await FilePicker.pickFiles();
+      if (result == null || result.files.single.path == null) {
+        setState(() => _isUploading = false);
+        return;
+      }
+
+      final path = result.files.single.path!;
+      final url = await userSession.uploadDocumentToCloudinary(path);
+      setState(() => _isUploading = false);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erreur lors de l\'envoi du fichier')),
+          );
+        }
+        return;
+      }
+
+      final fileName = result.files.single.name;
+      await _sendMessage(type: 'file', fileUrl: url, fileName: fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  Future<void> _openAttachmentMenu() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Color(0xFF00BCD4)),
+              title: const Text('Galerie'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF00BCD4)),
+              title: const Text('Caméra'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file, color: Color(0xFF00BCD4)),
+              title: const Text('Fichier'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendFile();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -95,6 +245,17 @@ class _ChatScreenState extends State<ChatScreen> {
     return colors[hash % colors.length];
   }
 
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible d\'ouvrir le lien: $url')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatarColor = _getAvatarColor(widget.otherUserName);
@@ -104,9 +265,15 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: avatarColor,
         foregroundColor: Colors.white,
         titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+        leading: Badge.count(
+          backgroundColor: Colors.red,
+          count: _unreadCount,
+          maxCount: 99,
+          isLabelVisible: _unreadCount > 0,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
         title: Row(
           children: [
@@ -183,11 +350,91 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     final isMe = data['senderId'] == userSession.userId;
-                    final text = data['text'] ?? '';
+                    final String? type = data['type'] as String?;
+                    final text = (data['text'] ?? '').toString();
+                    final fileUrl = (data['fileUrl'] ?? '').toString();
+                    final fileName = (data['fileName'] ?? '').toString();
                     final createdAt = data['createdAt'] as Timestamp?;
                     final time = createdAt != null
                         ? '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}'
                         : '';
+
+                    Widget? mediaContent;
+                    if (type == 'image' && fileUrl.isNotEmpty) {
+                      mediaContent = InkWell(
+                        onTap: () => _openUrl(fileUrl),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            fileUrl,
+                            width: 220,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Padding(
+                                padding: EdgeInsets.all(20),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: 220,
+                              height: 150,
+                              color: Colors.black26,
+                              child: const Icon(Icons.broken_image, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else if (type == 'file' && fileUrl.isNotEmpty) {
+                      mediaContent = InkWell(
+                        onTap: () => _openUrl(fileUrl),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isMe ? Colors.white24 : const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                           child: Row(
+                             children: [
+                               Container(
+                                 width: 40,
+                                 height: 40,
+                                 decoration: BoxDecoration(
+                                   color: isMe ? Colors.white30 : const Color(0xFFE0E0E0),
+                                   borderRadius: BorderRadius.circular(8),
+                                 ),
+                                 child: const Icon(Icons.insert_drive_file, color: Color(0xFF00BCD4)),
+                               ),
+                               const SizedBox(width: 12),
+                               Expanded(
+                                 child: Column(
+                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                   children: [
+                                     Text(
+                                       fileName.isNotEmpty ? fileName : 'Fichier',
+                                       style: TextStyle(
+                                         color: isMe ? Colors.white : Colors.black87,
+                                         fontWeight: FontWeight.w600,
+                                       ),
+                                       maxLines: 1,
+                                       overflow: TextOverflow.ellipsis,
+                                     ),
+                                     const SizedBox(height: 4),
+                                     Text(
+                                       'Ouvrir le fichier',
+                                       style: TextStyle(
+                                         color: isMe ? Colors.white70 : const Color(0xFF00BCD4),
+                                         fontSize: 12,
+                                       ),
+                                     ),
+                                   ],
+                                 ),
+                               ),
+                             ],
+                           ),
+                        ),
+                      );
+                    }
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -209,14 +456,18 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              text,
-                              style: TextStyle(
-                                color: isMe ? Colors.white : Colors.black87,
-                                fontSize: 14,
-                                height: 1.35,
+                            if (text.isNotEmpty && type != null)
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  color: isMe ? Colors.white : Colors.black87,
+                                  fontSize: 14,
+                                  height: 1.35,
+                                ),
                               ),
-                            ),
+                            if (text.isNotEmpty && type != null)
+                              const SizedBox(height: 8),
+                            if (mediaContent != null) mediaContent!,
                             const SizedBox(height: 4),
                             Row(
                               mainAxisSize: MainAxisSize.min,
@@ -258,12 +509,12 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.white,
               border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
             ),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () {},
-                  icon: Icon(Icons.add_photo_alternate, color: avatarColor),
-                ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: _isUploading ? null : _openAttachmentMenu,
+            icon: Icon(Icons.add_photo_alternate, color: avatarColor),
+          ),
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -279,7 +530,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     maxLines: null,
                     textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
+                    onSubmitted: (_) => _sendMessage(text: _messageController.text),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -287,7 +538,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   radius: 22,
                   backgroundColor: avatarColor,
                   child: IconButton(
-                    onPressed: _sendMessage,
+                    onPressed: () => _sendMessage(text: _messageController.text),
                     icon: const Icon(Icons.send, color: Colors.white, size: 18),
                   ),
                 ),

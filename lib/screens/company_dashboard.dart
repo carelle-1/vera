@@ -71,7 +71,6 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         ? firestore
             .collection('company_notifications')
             .where('userId', isEqualTo: userSession.userId)
-            .orderBy('createdAt', descending: true)
             .limit(10)
             .snapshots()
         : null;
@@ -162,11 +161,20 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     return StreamBuilder<QuerySnapshot>(
       stream: _notificationStream,
       builder: (context, snapshot) {
-        final unreadCount = snapshot.data?.docs
-                .where((doc) =>
-                    (doc.data() as Map<String, dynamic>)['read'] == false)
-                .length ??
-            0;
+        if (snapshot.hasError) {
+          return IconButton(
+            tooltip: 'Notifications',
+            onPressed: _openNotificationsSheet,
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final unreadCount = docs
+            .where((doc) =>
+                (doc.data() as Map<String, dynamic>)['read'] == false)
+            .length;
+
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -205,8 +213,24 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Future<List<QueryDocumentSnapshot>> _loadNotifications() async {
+    if (userSession.userId == null) return [];
+
+    try {
+      final snapshot = await firestore
+          .collection('company_notifications')
+          .where('userId', isEqualTo: userSession.userId)
+          .limit(50)
+          .get();
+      return snapshot.docs;
+    } catch (e) {
+      throw Exception('Impossible de charger les notifications: $e');
+    }
+  }
+
   void _openNotificationsSheet() {
-    if (_notificationStream == null) return;
+    if (userSession.userId == null) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -226,14 +250,19 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: _notificationStream,
+                  child: FutureBuilder<List<QueryDocumentSnapshot>>(
+                    future: _loadNotifications(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.hasError) {
+                        return const Center(
+                          child: Text('Erreur de chargement des notifications'),
+                        );
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
-                      final notifications = [...snapshot.data?.docs ?? []];
+
+                      final notifications = [...(snapshot.data ?? [])];
                       notifications.sort((a, b) {
                         final aData = a.data() as Map<String, dynamic>;
                         final bData = b.data() as Map<String, dynamic>;
@@ -242,21 +271,23 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         return (bDate?.toDate() ?? DateTime(1970))
                             .compareTo(aDate?.toDate() ?? DateTime(1970));
                       });
-                      final visibleNotifications = notifications.take(30).toList();
+
                       if (notifications.isEmpty) {
                         return const Center(
                           child: Text('Aucune notification pour le moment'),
                         );
                       }
+
                       return ListView.separated(
-                        itemCount: visibleNotifications.length,
+                        itemCount: notifications.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
-                          final doc = visibleNotifications[index];
+                          final doc = notifications[index];
                           final data = doc.data() as Map<String, dynamic>;
                           final title = (data['title'] ?? 'Notification').toString();
                           final body = (data['body'] ?? '').toString();
                           final isUnread = data['read'] == false;
+
                           return ListTile(
                             title: Text(
                               title,
