@@ -29,6 +29,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   Stream<QuerySnapshot>? _solicitationsStream;
 
   int _currentIndex = 0;
+  int _unreadMessageCount = 0;
 
   // --- Offres ---
   final _offerFormKey = GlobalKey<FormState>();
@@ -74,6 +75,26 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             .limit(10)
             .snapshots()
         : null;
+
+    if (userSession.userId != null) {
+      firestore
+          .collection('messages')
+          .where('participants', arrayContains: userSession.userId)
+          .snapshots()
+          .listen((snapshot) {
+        final totalUnread = snapshot.docs.fold<int>(0, (sum, doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final key = 'unreadCount_${userSession.userId}';
+          final value = data[key];
+          if (value is int) return sum + value;
+          if (value is double) return sum + value.toInt();
+          return sum;
+        });
+        if (mounted) {
+          setState(() => _unreadMessageCount = totalUnread);
+        }
+      });
+    }
     _initNotifications();
     _saveFcmToken();
     _loadCompanyProfile();
@@ -2063,7 +2084,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         selectedItemColor: const Color(0xFF00BCD4),
         unselectedItemColor: Colors.black,
         onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.people),
             label: 'Utilisateurs',
@@ -2077,7 +2098,34 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             label: 'Paramètres',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.chat),
+                if (_unreadMessageCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        _unreadMessageCount > 99 ? '99+' : '$_unreadMessageCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             label: 'Messagerie',
           ),
           BottomNavigationBarItem(

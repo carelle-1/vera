@@ -85,6 +85,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   int _currentIndex = 0;
   int _profilePageIndex = 0;
   int _currentHomePage = 0;
+  int _unreadMessageCount = 0;
   final List<Map<String, dynamic>> _diplomas = [];
   String _searchQuery = '';
   bool _showSearchBarHome = false;
@@ -123,6 +124,26 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _loadProfileData();
     _initNotifications();
     _loadAppliedOffers();
+
+    if (userSession.userId != null) {
+      firestore
+          .collection('messages')
+          .where('participants', arrayContains: userSession.userId)
+          .snapshots()
+          .listen((snapshot) {
+        final totalUnread = snapshot.docs.fold<int>(0, (sum, doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final key = 'unreadCount_${userSession.userId}';
+          final value = data[key];
+          if (value is int) return sum + value;
+          if (value is double) return sum + value.toInt();
+          return sum;
+        });
+        if (mounted) {
+          setState(() => _unreadMessageCount = totalUnread);
+        }
+      });
+    }
   }
 
   Future<void> _loadAppliedOffers() async {
@@ -2617,10 +2638,58 @@ SizedBox(
               label: 'Candidatures',
               index: 2,
             ),
-            _buildBottomNavItem(
-              icon: phicons.PhosphorIconsRegular.chats,
-              label: 'Message',
-              index: 3,
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _currentIndex = 3),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(phicons.PhosphorIconsRegular.chats, color: _currentIndex == 3 ? const Color(0xFF4CAF50) : Colors.grey, size: 24),
+                          if (_unreadMessageCount > 0)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Text(
+                                  _unreadMessageCount > 99 ? '99+' : '$_unreadMessageCount',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Message',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _currentIndex == 3 ? const Color(0xFF4CAF50) : Colors.grey,
+                          fontSize: 12,
+                          fontWeight: _currentIndex == 3 ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
             _buildBottomNavItem(
               icon: phicons.PhosphorIconsRegular.user,
