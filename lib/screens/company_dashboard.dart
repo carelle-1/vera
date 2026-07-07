@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../auth_service.dart';
+import 'chat_screen.dart';
 
 class CompanyDashboard extends StatefulWidget {
   const CompanyDashboard({super.key});
@@ -1409,6 +1410,19 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         );
       }
 
+      final participants = [userSession.userId, userId]..sort();
+      final conversationId = participants.join('_');
+      final conversationRef = firestore.collection('messages').doc(conversationId);
+      final existing = await conversationRef.get();
+      if (!existing.exists) {
+        await conversationRef.set({
+          'participants': participants,
+          'lastMessage': 'Nouvelle sollicitation: $companyName est intéressé par votre profil',
+          'senderName': companyName,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sollicitation envoyée')),
@@ -1687,8 +1701,17 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Messagerie en cours de développement')),
+                            final participants = [userSession.userId, userId]..sort();
+                            final conversationId = participants.join('_');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatScreen(
+                                  conversationId: conversationId,
+                                  otherUserId: userId,
+                                  otherUserName: name,
+                                ),
+                              ),
                             );
                           },
                           style: ElevatedButton.styleFrom(
@@ -1763,24 +1786,105 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             ),
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
+        return ListView.separated(
+          padding: const EdgeInsets.only(top: 8, bottom: 80),
           itemCount: messages.length,
+          separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
           itemBuilder: (context, index) {
             final data = messages[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: ListTile(
-                leading: const Icon(Icons.chat, color: Color(0xFF00BCD4)),
-                title: Text(data['lastMessage'] ?? 'Message'),
-                subtitle: Text('De: ${data['senderName'] ?? ''}', style: const TextStyle(color: Colors.grey)),
-                trailing: Text(
-                  data['createdAt'] != null
-                      ? (data['createdAt'] as Timestamp).toDate().toString().substring(0, 10)
-                      : '',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
+            final conversation = messages[index];
+            final participants = List<String>.from(data['participants'] ?? []);
+            final otherUserId = participants.firstWhere(
+              (id) => id != userSession.userId,
+              orElse: () => '',
+            );
+            final lastMessage = data['lastMessage'] ?? 'Message';
+            final createdAt = data['createdAt'] as Timestamp?;
+            final isOnline = data['isOnline'] == true;
+
+            if (otherUserId.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return StreamBuilder<DocumentSnapshot>(
+              stream: firestore.collection('users').doc(otherUserId).snapshots(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.hasError) {
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    title: const Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  );
+                }
+                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    title: const Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  );
+                }
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                final otherUserName =
+                    (userData['name'] ?? userData['email'] ?? 'Utilisateur').toString();
+                final otherUserEmail = (userData['email'] ?? '').toString();
+
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF00BCD4),
+                    child: Text(
+                      otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  title: Text(
+                    otherUserName,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  trailing: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (createdAt != null)
+                        Text(
+                          '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      if (isOnline) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          conversationId: conversation.id,
+                          otherUserId: otherUserId,
+                          otherUserName: otherUserName,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             );
           },
         );

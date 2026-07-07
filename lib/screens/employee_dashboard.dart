@@ -15,6 +15,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../auth_service.dart';
+import 'chat_screen.dart';
 class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
 
@@ -106,7 +107,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return firestore
         .collection('jobseeker_notifications')
         .where('userId', isEqualTo: userSession.userId)
-        .orderBy('createdAt', descending: true)
         .limit(10)
         .snapshots();
   }
@@ -2474,27 +2474,105 @@ SizedBox(
             ),
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
+        return ListView.separated(
+          padding: const EdgeInsets.only(top: 8, bottom: 80),
           itemCount: messages.length,
+          separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
           itemBuilder: (context, index) {
             final data = messages[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: ListTile(
-                leading: Icon(phicons.PhosphorIconsRegular.chats, color: Color(0xFF4CAF50)),
-                title: Text(data['lastMessage'] ?? 'Message'),
-                subtitle: Text('De: ${data['senderName'] ?? ''}', style: const TextStyle(color: Colors.grey)),
-                trailing: Text(
-                  data['createdAt'] != null
-                      ? (data['createdAt'] as Timestamp)
-                          .toDate()
-                          .toString()
-                          .substring(0, 10)
-                      : '',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
+            final conversation = messages[index];
+            final participants = List<String>.from(data['participants'] ?? []);
+            final otherUserId = participants.firstWhere(
+              (id) => id != userSession.userId,
+              orElse: () => '',
+            );
+            final lastMessage = data['lastMessage'] ?? 'Message';
+            final createdAt = data['createdAt'] as Timestamp?;
+            final isOnline = data['isOnline'] == true;
+
+            if (otherUserId.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return StreamBuilder<DocumentSnapshot>(
+              stream: firestore.collection('users').doc(otherUserId).snapshots(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.hasError) {
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    title: const Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  );
+                }
+                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    title: const Text('Utilisateur', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  );
+                }
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                final otherUserName =
+                    (userData['name'] ?? userData['email'] ?? 'Utilisateur').toString();
+                final otherUserEmail = (userData['email'] ?? '').toString();
+
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    child: Text(
+                      otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  title: Text(
+                    otherUserName,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  trailing: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (createdAt != null)
+                        Text(
+                          '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      if (isOnline) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          conversationId: conversation.id,
+                          otherUserId: otherUserId,
+                          otherUserName: otherUserName,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             );
           },
         );
@@ -4251,22 +4329,26 @@ SizedBox(
       stream: firestore
           .collection('applications')
           .where('userId', isEqualTo: userSession.userId)
-          .orderBy('appliedAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         final applications = (snapshot.data?.docs ?? []).toList();
-      final appliedApplications = applications.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final status = (data['status'] ?? '').toString().toLowerCase();
-        return status == 'sent' ||
-            status == 'pending' ||
-            status == 'postulé' ||
-            status == 'postule' ||
-            status == 'applied';
-      }).toList();
+        applications.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = (aData['appliedAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          final bTime = (bData['appliedAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          return bTime.compareTo(aTime);
+        });
+        final appliedApplications = applications.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final status = (data['status'] ?? '').toString().toLowerCase();
+          return status == 'sent' ||
+              status == 'pending' ||
+              status == 'reviewed';
+        }).toList();
       if (appliedApplications.isEmpty) {
         return const Center(
           child: Column(
