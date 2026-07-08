@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart' as phicons;
 import '../auth_service.dart';
 import 'chat_screen.dart';
 
@@ -205,7 +206,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           return IconButton(
             tooltip: 'Notifications',
             onPressed: _openNotificationsSheet,
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            icon: const Icon(phicons.PhosphorIconsRegular.bell, color: Colors.white),
           );
         }
 
@@ -221,7 +222,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             IconButton(
               tooltip: 'Notifications',
               onPressed: _openNotificationsSheet,
-              icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+              icon: const Icon(phicons.PhosphorIconsRegular.bell, color: Colors.white),
             ),
             if (unreadCount > 0)
               Positioned(
@@ -594,31 +595,37 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_isLoading) const LinearProgressIndicator(),
-            _offerTextField(
-              _titleController,
-              'Titre',
-              Icons.title,
-              validator: (v) => v!.isEmpty ? 'Requis' : null,
-            ),
-            _offerTextField(_companyController, 'Entreprise', Icons.business),
-            _offerTextField(
-              _contactEmailController,
-              'Email de contact',
-              Icons.email,
-              type: TextInputType.emailAddress,
-            ),
-            _offerTextField(_cityController, 'Ville', Icons.location_city),
-            _offerTextField(_countryController, 'Pays', Icons.public),
-            _offerTextField(
-              _descriptionController,
-              'Description',
-              Icons.description,
-              maxLines: 3,
-            ),
+          _offerTextField(
+            _titleController,
+            'Titre',
+            phicons.PhosphorIconsRegular.textT,
+            validator: (v) => v!.isEmpty ? 'Requis' : null,
+          ),
+            _offerTextField(_companyController, 'Entreprise', phicons.PhosphorIconsRegular.briefcase),
+          _offerTextField(
+            _contactEmailController,
+            'Email de contact',
+            phicons.PhosphorIconsRegular.envelopeSimple,
+            type: TextInputType.emailAddress,
+          ),
+          _offerTextField(_cityController, 'Ville', phicons.PhosphorIconsRegular.mapPin),
+          _offerTextField(_countryController, 'Pays', phicons.PhosphorIconsRegular.globe),
+          _offerTextField(
+            _descriptionController,
+            'Description',
+            phicons.PhosphorIconsRegular.article,
+            maxLines: 3,
+          ),
+          _offerTextField(
+            _salaryController,
+            'Salaire',
+            phicons.PhosphorIconsRegular.currencyDollar,
+            type: TextInputType.number,
+          ),
             _offerTextField(
               _salaryController,
               'Salaire',
-              Icons.attach_money,
+               phicons.PhosphorIconsRegular.currencyDollar,
               type: TextInputType.number,
             ),
             Padding(
@@ -633,8 +640,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                       color: const Color(0xFFE8F5E9),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.work_outline,
-                        size: 18, color: Color(0xFF4CAF50)),
+                  child: const Icon(phicons.PhosphorIconsRegular.briefcase,
+                      size: 18, color: Color(0xFF4CAF50)),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -658,7 +665,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             _offerTextField(
               _skillsController,
               'Compétences (séparées par virgule)',
-              Icons.code,
+              phicons.PhosphorIconsRegular.code,
             ),
             InkWell(
               onTap: _selectExpiryDate,
@@ -671,7 +678,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                       color: const Color(0xFFE8F5E9),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.calendar_today,
+                    child: const Icon(phicons.PhosphorIconsRegular.calendar,
                         size: 18, color: Color(0xFF4CAF50)),
                   ),
                   border: OutlineInputBorder(
@@ -712,7 +719,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                               color: Colors.grey[300],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.broken_image, size: 40),
+                              child: const Icon(phicons.PhosphorIconsRegular.imageBroken, size: 40),
                           ),
                         ),
                       )
@@ -725,13 +732,13 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                             color: Colors.grey[300],
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.upload, size: 40),
+                          child: const Icon(phicons.PhosphorIconsRegular.uploadSimple, size: 40),
                         ),
                       ),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _pickLogo,
-                    icon: const Icon(Icons.upload),
+                    icon: const Icon(phicons.PhosphorIconsRegular.uploadSimple),
                     label: Text(
                       _logoUrl != null && _logoUrl!.isNotEmpty
                           ? 'Logo uploadé'
@@ -820,7 +827,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             final data = offer.data() as Map<String, dynamic>?;
             return Card(
               child: ListTile(
-                leading: const Icon(Icons.work, color: Color(0xFF00BCD4)),
+                leading: const Icon(phicons.PhosphorIconsRegular.briefcase, color: Color(0xFF00BCD4)),
                 title: Text(data?['title'] ?? ''),
                 subtitle: Text(
                   '${data?['city'] ?? ''} ${data?['country'] ?? ''}'.trim(),
@@ -829,11 +836,11 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      icon: const Icon(phicons.PhosphorIconsRegular.pencilSimple, color: Colors.blue),
                       onPressed: () => _editOffer(offer),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
+                      icon: const Icon(phicons.PhosphorIconsRegular.trashSimple, color: Colors.red),
                       onPressed: () => _deleteOffer(offer.id),
                     ),
                   ],
@@ -857,7 +864,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           child: TextField(
             decoration: InputDecoration(
               hintText: 'Rechercher un chercheur d\'emploi...',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(phicons.PhosphorIconsRegular.magnifyingGlass),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -914,7 +921,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                     child: ListTile(
                       leading: const CircleAvatar(
                         backgroundColor: Color(0xFF00BCD4),
-                        child: Icon(Icons.person, color: Colors.white),
+                        child: Icon(phicons.PhosphorIconsRegular.user, color: Colors.white),
                       ),
                       title: Text(name.isNotEmpty ? name : email),
                       subtitle: Text(email),
@@ -982,7 +989,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         child: CircleAvatar(
                           radius: 40,
                           backgroundColor: const Color(0xFF00BCD4),
-                          child: const Icon(Icons.person,
+                          child: const Icon(phicons.PhosphorIconsRegular.user,
                               size: 40, color: Colors.white),
                         ),
                       ),
@@ -1005,9 +1012,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 8),
-                      _detailRow(Icons.phone, 'Téléphone', phone),
-                      _detailRow(Icons.location_city, 'Ville', city),
-                      _detailRow(Icons.public, 'Pays', country),
+                      _detailRow(phicons.PhosphorIconsRegular.phone, 'Téléphone', phone),
+                      _detailRow(phicons.PhosphorIconsRegular.mapPin, 'Ville', city),
+                      _detailRow(phicons.PhosphorIconsRegular.globe, 'Pays', country),
                       if (about.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         const Text('À propos',
@@ -1039,7 +1046,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                             backgroundColor: const Color(0xFFE8F5E9),
                             foregroundColor: const Color(0xFF2E7D32),
                           ),
-                          icon: const Icon(Icons.picture_as_pdf),
+                          icon: const Icon(phicons.PhosphorIconsRegular.filePdf),
                           label: const Text('Voir le CV'),
                         ),
                       ),
@@ -1162,28 +1169,28 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             const CircleAvatar(
               radius: 40,
               backgroundColor: Color(0xFF00BCD4),
-              child: Icon(Icons.business, size: 40, color: Colors.white),
+              child: Icon(phicons.PhosphorIconsRegular.briefcase, size: 40, color: Colors.white),
             ),
             const SizedBox(height: 16),
-            _settingsField(_nameController, 'Nom de l\'entreprise', Icons.business),
-            _settingsField(
-              _phoneController,
-              'Téléphone',
-              Icons.phone,
-              type: TextInputType.phone,
-            ),
-            _settingsField(
-              _websiteController,
-              'Site web',
-              Icons.language,
-              type: TextInputType.url,
-            ),
-            _settingsField(
-              _aboutController,
-              'Description de l\'entreprise',
-              Icons.info,
-              maxLines: 4,
-            ),
+            _settingsField(_nameController, 'Nom de l\'entreprise', phicons.PhosphorIconsRegular.briefcase),
+              _settingsField(
+                _phoneController,
+                'Téléphone',
+                phicons.PhosphorIconsRegular.phone,
+                type: TextInputType.phone,
+              ),
+              _settingsField(
+                _websiteController,
+                'Site web',
+                phicons.PhosphorIconsRegular.globeHemisphereWest,
+                type: TextInputType.url,
+              ),
+              _settingsField(
+                _aboutController,
+                'Description de l\'entreprise',
+                phicons.PhosphorIconsRegular.info,
+                maxLines: 4,
+              ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _isLoading ? null : _saveCompanyProfile,
@@ -1413,8 +1420,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.warning_amber,
-                                    color: Colors.orange, size: 18),
+                                 const Icon(phicons.PhosphorIconsRegular.warning,
+                                     color: Colors.orange, size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(r)),
                               ],
@@ -1759,7 +1766,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                               filename: 'cv_${name.replaceAll(' ', '_').toLowerCase()}.pdf',
                             );
                           },
-                          icon: const Icon(Icons.share),
+                          icon: const Icon(phicons.PhosphorIconsRegular.shareNetwork),
                           label: const Text('Partager PDF'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00BCD4),
@@ -1850,7 +1857,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                Icon(phicons.PhosphorIconsRegular.chatTeardrop, size: 64, color: Colors.grey),
                 SizedBox(height: 16),
                 Text('Aucun message', style: TextStyle(color: Colors.grey)),
               ],
@@ -2025,7 +2032,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         child: const Text('Accepter'),
                       ),
                     if (status == 'accepted')
-                      const Icon(Icons.check_circle, color: Colors.green),
+                      const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green),
                   ],
                 ),
               ),
@@ -2118,7 +2125,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                   onPressed: userId != null
                                       ? () => _generateCVForJobseeker(userId)
                                       : null,
-                                  icon: const Icon(Icons.picture_as_pdf, color: Color(0xFF00BCD4)),
+                                   icon: const Icon(phicons.PhosphorIconsRegular.filePdf, color: Color(0xFF00BCD4)),
                                   tooltip: 'Voir CV',
                                 ),
                                 if (status != 'accepted' && status != 'rejected')
@@ -2134,7 +2141,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                         );
                                       }
                                     },
-                                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                                     icon: const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green),
                                     tooltip: 'Accepter',
                                   ),
                                 if (status != 'rejected')
@@ -2150,13 +2157,13 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                         );
                                       }
                                     },
-                                    icon: const Icon(Icons.cancel, color: Colors.red),
+                                    icon: const Icon(phicons.PhosphorIconsRegular.xCircle, color: Colors.red),
                                     tooltip: 'Refuser',
                                   ),
                                 if (status == 'accepted')
-                                  const Icon(Icons.verified, color: Colors.green, size: 20),
+                                  const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green, size: 20),
                                 if (status == 'rejected')
-                                  const Icon(Icons.block, color: Colors.red, size: 20),
+                                  const Icon(phicons.PhosphorIconsRegular.prohibit, color: Colors.red, size: 20),
                               ],
                             ),
                           );
@@ -2246,7 +2253,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
               child: ListTile(
                 leading: const CircleAvatar(
                   backgroundColor: Color(0xFF00BCD4),
-                  child: Icon(Icons.person, color: Colors.white),
+                   child: Icon(phicons.PhosphorIconsRegular.user, color: Colors.white),
                 ),
                 title: Text(jobseekerName),
                 subtitle: Text(dateStr.isNotEmpty ? 'Sollicité le $dateStr' : ''),
@@ -2312,7 +2319,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 ),
               );
             },
-            icon: const Icon(Icons.logout),
+            icon: const Icon(phicons.PhosphorIconsRegular.signOut),
           ),
         ],
       ),
@@ -2335,7 +2342,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 _clearOfferForm();
                 setState(() => _showOfferForm = true);
               },
-              child: const Icon(Icons.add),
+              child: const Icon(phicons.PhosphorIconsRegular.plus),
             )
           : null,
       bottomNavigationBar: BottomNavigationBar(
@@ -2345,22 +2352,22 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.people),
+            icon: Icon(phicons.PhosphorIconsRegular.users),
             label: 'Utilisateurs',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.work),
+            icon: Icon(phicons.PhosphorIconsRegular.briefcase),
             label: 'Offres',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.assignment),
+            icon: Icon(phicons.PhosphorIconsRegular.scroll),
             label: 'Demandes',
           ),
           BottomNavigationBarItem(
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Icon(Icons.chat),
+                 const Icon(phicons.PhosphorIconsRegular.chat),
                 if (_unreadMessageCount > 0)
                   Positioned(
                     right: -6,
@@ -2388,7 +2395,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             label: 'Messagerie',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.mark_email_read),
+            icon: Icon(phicons.PhosphorIconsRegular.envelopeOpen),
             label: 'Candidatures',
           ),
         ],
