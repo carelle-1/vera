@@ -2100,6 +2100,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                           final status = (appData['status'] ?? 'pending').toString();
                           final userName = appData['userName'] ?? 'Candidat';
                           final applicationId = app.id;
+                          final userId = appData['userId'] as String?;
+
                           return ListTile(
                             title: Text(userName),
                             subtitle: Text(
@@ -2112,6 +2114,13 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                IconButton(
+                                  onPressed: userId != null
+                                      ? () => _generateCVForJobseeker(userId)
+                                      : null,
+                                  icon: const Icon(Icons.picture_as_pdf, color: Color(0xFF00BCD4)),
+                                  tooltip: 'Voir CV',
+                                ),
                                 if (status != 'accepted' && status != 'rejected')
                                   IconButton(
                                     onPressed: () async {

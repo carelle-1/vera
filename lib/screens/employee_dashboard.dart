@@ -227,7 +227,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     } catch (_) {}
   }
 
-  Future<void> _applyToOffer([QueryDocumentSnapshot? offer, bool automatic = false]) async {
+  Future<void> _applyToOffer([QueryDocumentSnapshot? offer, bool automatic = false, BuildContext? dialogContext]) async {
     String offerId;
     String offerTitle;
     String contactEmail = '';
@@ -310,12 +310,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       );
 
       if (response.statusCode != 200) {
-        if (automatic) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Erreur serveur - offre ignorée')),
-            );
-          }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erreur serveur - candidature non envoyée')),
+          );
         }
         setState(() => _appliedOfferIds.add(offerId));
         return;
@@ -348,6 +346,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           );
           if (offer == null) {
             setState(() => _selectedOffer = null);
+          }
+          if (dialogContext != null && Navigator.canPop(dialogContext)) {
+            Navigator.pop(dialogContext);
           }
         }
       } else {
@@ -3141,14 +3142,7 @@ SizedBox(
                         onPressed: _appliedOfferIds.contains(offer.id)
                             ? null
                             : () {
-                                Navigator.pop(context);
-                                if (data != null) {
-                                  setState(() => _selectedOffer = {
-                                        'id': offer.id,
-                                        ...Map<String, dynamic>.from(data),
-                                      });
-                                }
-                                _applyToOffer();
+                                _applyToOffer(offer, false, context);
                               },
                         icon: const Icon(Icons.send),
                         label: Text(
