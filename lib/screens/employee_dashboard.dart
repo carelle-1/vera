@@ -4414,9 +4414,7 @@ SizedBox(
         final appliedApplications = applications.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final status = (data['status'] ?? '').toString().toLowerCase();
-          return status == 'sent' ||
-              status == 'pending' ||
-              status == 'reviewed';
+          return status == 'accepted';
         }).toList();
       if (appliedApplications.isEmpty) {
         return const Center(

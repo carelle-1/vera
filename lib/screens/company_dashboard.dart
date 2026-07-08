@@ -27,6 +27,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   Stream<QuerySnapshot>? _notificationStream;
   Stream<QuerySnapshot>? _jobseekersStream;
   Stream<QuerySnapshot>? _solicitationsStream;
+  Stream<QuerySnapshot>? _applicationsStream;
 
   int _currentIndex = 0;
   int _unreadMessageCount = 0;
@@ -105,6 +106,24 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             .where('companyId', isEqualTo: userSession.userId)
             .snapshots()
         : null;
+
+    if (userSession.userId != null) {
+      firestore
+          .collection('job_offers')
+          .where('userId', isEqualTo: userSession.userId)
+          .snapshots()
+          .listen((offerSnapshot) {
+        final offerIds = offerSnapshot.docs.map((doc) => doc.id).toList();
+        if (offerIds.isEmpty) {
+          _applicationsStream = null;
+          return;
+        }
+        _applicationsStream = firestore
+            .collection('applications')
+            .where('offerId', whereIn: offerIds)
+            .snapshots();
+      });
+    }
   }
 
   @override
@@ -1944,6 +1963,236 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Widget _buildApplicationsView() {
+    if (userSession.userId == null) {
+      return const Center(child: Text('Non connecté'));
+    }
+    if (_applicationsStream == null) {
+      return const Center(child: Text('Aucune candidature reçue'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _applicationsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final applications = [...snapshot.data?.docs ?? []];
+        applications.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aDate = (aData['appliedAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          final bDate = (bData['appliedAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          return bDate.compareTo(aDate);
+        });
+        if (applications.isEmpty) {
+          return const Center(child: Text('Aucune candidature reçue'));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: applications.length,
+          itemBuilder: (context, index) {
+            final data = applications[index].data() as Map<String, dynamic>;
+            final status = (data['status'] ?? 'pending').toString();
+            final applicationId = applications[index].id;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: ListTile(
+                title: Text(data['offerTitle'] ?? 'Offre inconnue'),
+                subtitle: Text('Candidat: ${data['userName'] ?? 'Anonyme'}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (status != 'accepted')
+                      ElevatedButton(
+                        onPressed: () async {
+                          await firestore
+                              .collection('applications')
+                              .doc(applicationId)
+                              .update({'status': 'accepted'});
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Candidature acceptée')),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE8F5E9),
+                          foregroundColor: const Color(0xFF2E7D32),
+                        ),
+                        child: const Text('Accepter'),
+                      ),
+                    if (status == 'accepted')
+                      const Icon(Icons.check_circle, color: Colors.green),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDemandsView() {
+    if (userSession.userId == null) {
+      return const Center(child: Text('Non connecté'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore
+          .collection('job_offers')
+          .where('userId', isEqualTo: userSession.userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final offers = snapshot.data?.docs ?? [];
+        if (offers.isEmpty) {
+          return const Center(
+            child: Text('Aucune offre publiée'),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: offers.length,
+          itemBuilder: (context, index) {
+            final offer = offers[index];
+            final offerData = offer.data() as Map<String, dynamic>;
+            final offerId = offer.id;
+            final offerTitle = offerData['title'] ?? 'Offre sans titre';
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: firestore
+                  .collection('applications')
+                  .where('offerId', isEqualTo: offerId)
+                  .snapshots(),
+              builder: (context, appSnapshot) {
+                final applications = appSnapshot.data?.docs ?? [];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  child: ExpansionTile(
+                    title: Text(
+                      offerTitle,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      '${applications.length} candidature(s)',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    children: [
+                      if (applications.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Aucune candidature pour le moment',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      else
+                        ...applications.map((app) {
+                          final appData = app.data() as Map<String, dynamic>;
+                          final status = (appData['status'] ?? 'pending').toString();
+                          final userName = appData['userName'] ?? 'Candidat';
+                          final applicationId = app.id;
+                          return ListTile(
+                            title: Text(userName),
+                            subtitle: Text(
+                              'Statut: ${_formatStatus(status)}',
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (status != 'accepted' && status != 'rejected')
+                                  IconButton(
+                                    onPressed: () async {
+                                      await firestore
+                                          .collection('applications')
+                                          .doc(applicationId)
+                                          .update({'status': 'accepted'});
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Candidature acceptée')),
+                                        );
+                                      }
+                                    },
+                                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                                    tooltip: 'Accepter',
+                                  ),
+                                if (status != 'rejected')
+                                  IconButton(
+                                    onPressed: () async {
+                                      await firestore
+                                          .collection('applications')
+                                          .doc(applicationId)
+                                          .update({'status': 'rejected'});
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Candidature refusée')),
+                                        );
+                                      }
+                                    },
+                                    icon: const Icon(Icons.cancel, color: Colors.red),
+                                    tooltip: 'Refuser',
+                                  ),
+                                if (status == 'accepted')
+                                  const Icon(Icons.verified, color: Colors.green, size: 20),
+                                if (status == 'rejected')
+                                  const Icon(Icons.block, color: Colors.red, size: 20),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return 'Acceptée';
+      case 'rejected':
+        return 'Refusée';
+      case 'pending':
+        return 'En attente';
+      case 'sent':
+        return 'Envoyée';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+        return Colors.orange;
+      case 'sent':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildSolicitationsTab() {
     if (userSession.userId == null) {
       return const Center(child: Text('Non connecté'));
@@ -2063,9 +2312,10 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         children: [
           _buildUsersTab(),
           _buildOffersTab(),
-          _buildSettingsTab(),
+          _buildDemandsView(),
           _buildMessagesView(),
           _buildSolicitationsTab(),
+          _buildApplicationsView(),
         ],
       ),
       floatingActionButton: _currentIndex == 1 && !_showOfferForm
@@ -2094,8 +2344,8 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             label: 'Offres',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Paramètres',
+            icon: Icon(Icons.assignment),
+            label: 'Demandes',
           ),
           BottomNavigationBarItem(
             icon: Stack(
