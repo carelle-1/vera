@@ -770,7 +770,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 onPressed: () {
                   _clearOfferForm();
                   setState(() => _showOfferForm = false);
-                },
+                },    
                 child: const Text('Annuler'),
               ),
           ],

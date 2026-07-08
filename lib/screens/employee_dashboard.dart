@@ -1398,18 +1398,24 @@ SizedBox(
   }
 
   void _processAutoApplications(List<QueryDocumentSnapshot> offers) {
-    for (final doc in offers) {
-      if (_appliedOfferIds.contains(doc.id) ||
-          _pendingAutoApplyOfferIds.contains(doc.id)) {
-        continue;
-      }
-      _pendingAutoApplyOfferIds.add(doc.id);
-      Future.microtask(() {
-        if (mounted && _autoApplyEnabled && !_appliedOfferIds.contains(doc.id)) {
-          _applyToOffer(doc, true);
+    const batchSize = 3;
+    var index = 0;
+    void processBatch() {
+      final end = (index + batchSize).clamp(0, offers.length);
+      for (; index < end; index++) {
+        final doc = offers[index];
+        if (_appliedOfferIds.contains(doc.id) ||
+            _pendingAutoApplyOfferIds.contains(doc.id)) {
+          continue;
         }
-      });
+        _pendingAutoApplyOfferIds.add(doc.id);
+        _applyToOffer(doc, true);
+      }
+      if (index < offers.length && mounted && _autoApplyEnabled) {
+        Future.delayed(const Duration(milliseconds: 600), processBatch);
+      }
     }
+    processBatch();
   }
 
   Widget _buildNotificationButton() {
@@ -1710,6 +1716,7 @@ SizedBox(
           onChanged: (value) {
             setState(() {
               _autoApplyEnabled = value;
+              _hasQueuedAutoApps = false;
             });
             firestore
                 .collection('jobseekers')
@@ -1864,6 +1871,30 @@ SizedBox(
                 _openFavoritesScreen();
               },
             ),
+            ListTile(
+              leading: Icon(
+                Icons.autorenew,
+                color: _autoApplyEnabled ? Colors.green : Colors.grey,
+              ),
+              title: Text(
+                'Postulation automatique',
+                style: TextStyle(
+                  color: _autoApplyEnabled ? Colors.green : null,
+                  fontWeight: _autoApplyEnabled ? FontWeight.w600 : null,
+                ),
+              ),
+              subtitle: Text(
+                _autoApplyEnabled
+                    ? 'Activée - candidature auto aux offres compatibles'
+                    : 'Désactivée - activez pour postuler automatiquement',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showAutoApplyExplanationsSheet();
+              },
+            ),
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.logout, color: Color(0xFF4CAF50)),
@@ -1950,6 +1981,118 @@ SizedBox(
               );
             },
           ),
+        );
+      },
+    );
+  }
+
+  void _showAutoApplyExplanationsSheet() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.autorenew, color: Colors.green),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Postulation automatique',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: StatefulBuilder(
+            builder: (context, setModalState) {
+              final localAutoApply = ValueNotifier<bool>(_autoApplyEnabled);
+              return ValueListenableBuilder<bool>(
+                valueListenable: localAutoApply,
+                builder: (context, value, child) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value
+                            ? 'La postulation automatique est activée. '
+                                'Votre profil sera envoyé automatiquement '
+                                'aux offres compatibles avec vos compétences '
+                                'et vos préférences.'
+                            : 'Activez la postulation automatique pour '
+                                'envoyer votre candidature automatiquement '
+                                'aux offres correspondant à votre profil.',
+                        style: const TextStyle(fontSize: 14, height: 1.4),
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: const Text('Activer', style: TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: const Text('Candidature automatique aux offres compatibles', style: TextStyle(fontSize: 12)),
+                        value: value,
+                        onChanged: (newValue) async {
+                          localAutoApply.value = newValue;
+                          setState(() => _autoApplyEnabled = newValue);
+                          _hasQueuedAutoApps = false;
+                          try {
+                            await firestore
+                                .collection('jobseekers')
+                                .doc(userSession.userId ?? '')
+                                .set({'autoApply': newValue}, SetOptions(merge: true));
+                          } catch (_) {}
+                        },
+                        activeColor: Colors.white,
+                        activeTrackColor: const Color(0xFF4CAF50),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Comment ça marche ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle),
+                            child: const Center(child: Text('1', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('Sélection : analyse des nouvelles offres', style: TextStyle(fontSize: 13))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle),
+                            child: const Center(child: Text('2', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('Compatibilité : comparaison du profil', style: TextStyle(fontSize: 13),),),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle),
+                            child: const Center(child: Text('3', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('Postulation : envoi automatique du CV', style: TextStyle(fontSize: 13))),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
+          ],
         );
       },
     );
