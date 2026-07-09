@@ -1190,6 +1190,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildProfileHeader() {
+    final completion = _calculateProfileCompletion();
     return Container(
       decoration: const BoxDecoration(color: Colors.white),
       child: SafeArea(
@@ -1256,43 +1257,52 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ],
               ),
               const Spacer(),
-SizedBox(
-                width: 150,
-                height: 150,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CustomPaint(
-                      painter: _SemiCircleProgressPainter(
-                        value: _calculateProfileCompletion() / 100,
-                        progressColor: const Color(0xFF4CAF50),
-                        backgroundColor: const Color(0xFFE8F5E9),
-                        strokeWidth: 8,
-                      ),
-                    ),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: completion / 100),
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeOutCubic,
+                builder: (context, animatedValue, child) {
+                  return SizedBox(
+                    width: 150,
+                    height: 150,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        Text(
-                          '${_calculateProfileCompletion()}%',
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                        SizedBox(
+                          width: 150,
+                          height: 150,
+                          child: CircularProgressIndicator(
+                            value: animatedValue,
+                            strokeWidth: 8,
+                            backgroundColor: const Color(0xFFE8F5E9),
+                            color: const Color(0xFF4CAF50),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'complété',
-                          style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 12,
-                          ),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$completion%',
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'complété',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),
@@ -1850,42 +1860,49 @@ SizedBox(
                       ],
                     ),
                   ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 56,
-                        height: 56,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            SizedBox(
-                              width: 56,
-                              height: 56,
-                              child: CircularProgressIndicator(
-                                value: _calculateProfileCompletion() / 100,
-                                strokeWidth: 4,
-                                backgroundColor: Colors.white,
-                                color: const Color(0xFF4CAF50),
-                              ),
-                            ),
-                            Text(
-                              '${_calculateProfileCompletion()}%',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Text(
-                        'profil',
-                        style: TextStyle(color: Colors.white70, fontSize: 10),
-                      ),
-                    ],
-                  ),
+                   Column(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       TweenAnimationBuilder<double>(
+                         tween: Tween<double>(begin: 0, end: _calculateProfileCompletion() / 100),
+                         duration: const Duration(milliseconds: 800),
+                         curve: Curves.easeOutCubic,
+                         builder: (context, animatedValue, child) {
+                           return SizedBox(
+                             width: 56,
+                             height: 56,
+                             child: Stack(
+                               alignment: Alignment.center,
+                               children: [
+                                 SizedBox(
+                                   width: 56,
+                                   height: 56,
+                                   child: CircularProgressIndicator(
+                                     value: animatedValue,
+                                     strokeWidth: 4,
+                                     backgroundColor: Colors.white,
+                                     color: const Color(0xFF4CAF50),
+                                   ),
+                                 ),
+                                 Text(
+                                   '${_calculateProfileCompletion()}%',
+                                   style: const TextStyle(
+                                     color: Colors.white,
+                                     fontSize: 12,
+                                     fontWeight: FontWeight.bold,
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           );
+                         },
+                       ),
+                       const Text(
+                         'profil',
+                         style: TextStyle(color: Colors.white70, fontSize: 10),
+                       ),
+                     ],
+                   ),
                 ],
               ),
             ),
