@@ -14,9 +14,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   int _currentPage = 0;
 
   final List<String> _images = [
-    'assets/b48c8274-61df-480f-9cd9-47d697ef03e9.jpg',
-    'assets/28638.jpg',
-    'assets/Graident_Ai_Robot.jpg',
+    'assets/1.png',
+    'assets/2.png',
+    'assets/3.png',
+    'assets/4.png',
   ];
 
   @override
