@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -2676,7 +2677,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildMessagesView() {
-    return StreamBuilder<QuerySnapshot>(
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [_buildCollapsingAppBar('')];
+      },
+      body: StreamBuilder<QuerySnapshot>(
       stream: firestore
           .collection('messages')
           .where('participants', arrayContains: userSession.userId)
@@ -2801,8 +2806,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           },
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -2918,7 +2924,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               _buildProfileHeader(),
               const SizedBox(height: 12),
               _buildProfileMenuItem(
-                icon: Icons.person,
+                icon: CupertinoIcons.person,
                 label: 'Informations personnelles',
                 onTap: () => _openProfileSheet(
                   title: 'Informations personnelles',
@@ -2926,7 +2932,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.family_restroom,
+                icon: CupertinoIcons.heart,
                 label: 'Situation familiale',
                 onTap: () => _openProfileSheet(
                   title: 'Situation familiale',
@@ -2934,7 +2940,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.school,
+                icon: CupertinoIcons.book,
                 label: 'Formations & Diplômes',
                 onTap: () => _openProfileSheet(
                   title: 'Formations & Diplômes',
@@ -2942,7 +2948,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.work,
+                icon: CupertinoIcons.briefcase,
                 label: 'Expérience professionnelle',
                 onTap: () => _openProfileSheet(
                   title: 'Expérience professionnelle',
@@ -2950,7 +2956,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.language,
+                icon: CupertinoIcons.globe,
                 label: 'Langues & Loisirs',
                 onTap: () => _openProfileSheet(
                   title: 'Langues & Loisirs',
@@ -2958,7 +2964,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.tune,
+                icon: CupertinoIcons.gear,
                 label: 'Préférences',
                 onTap: () => _openProfileSheet(
                   title: 'Préférences',
@@ -2966,7 +2972,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.info,
+                icon: CupertinoIcons.info_circle,
                 label: 'À propos de moi',
                 onTap: () => _openProfileSheet(
                   title: 'À propos de moi',
@@ -2974,7 +2980,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 ),
               ),
               _buildProfileMenuItem(
-                icon: Icons.picture_as_pdf,
+                icon: CupertinoIcons.doc_text,
                 label: 'Générer mon CV',
                 onTap: _generateCV,
               ),
@@ -4566,7 +4572,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildApplicationsView() {
-    return StreamBuilder<QuerySnapshot>(
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [_buildCollapsingAppBar('')];
+      },
+      body: StreamBuilder<QuerySnapshot>(
       stream: firestore
           .collection('applications')
           .where('userId', isEqualTo: userSession.userId)
@@ -4635,8 +4645,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           },
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAboutTab() {
     return SingleChildScrollView(
