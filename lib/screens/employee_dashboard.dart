@@ -92,6 +92,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   bool _showSearchBarHome = false;
   Map<String, dynamic>? _selectedOffer;
   bool _autoApplyEnabled = false;
+  bool _showMessageActions = false;
   final Set<String> _appliedOfferIds = {};
   final Set<String> _pendingAutoApplyOfferIds = {};
   final Set<String> _favoriteOfferIds = {};
@@ -2681,134 +2682,237 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [_buildCollapsingAppBar('')];
       },
-      body: StreamBuilder<QuerySnapshot>(
-      stream: firestore
-          .collection('messages')
-          .where('participants', arrayContains: userSession.userId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final messages = snapshot.data?.docs ?? [];
-        if (messages.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(phicons.PhosphorIconsRegular.chats, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('Aucun message', style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.only(top: 8, bottom: 80),
-          itemCount: messages.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
-          itemBuilder: (context, index) {
-            final data = messages[index].data() as Map<String, dynamic>;
-            final conversation = messages[index];
-            final participants = List<String>.from(data['participants'] ?? []);
-            final otherUserId = participants.firstWhere(
-              (id) => id != userSession.userId,
-              orElse: () => '',
-            );
-            final lastMessage = data['lastMessage'] ?? 'Message';
-            final createdAt = data['createdAt'] as Timestamp?;
-            final isOnline = data['isOnline'] == true;
-
-            if (otherUserId.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            return StreamBuilder<DocumentSnapshot>(
-              stream: firestore.collection('users').doc(otherUserId).snapshots(),
-              builder: (context, userSnapshot) {
-                if (userSnapshot.hasError) {
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    title: const Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  );
-                }
-                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    title: const Text('Utilisateur', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  );
-                }
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                final otherUserName =
-                    (userData['name'] ?? userData['email'] ?? 'Utilisateur').toString();
-                final otherUserEmail = (userData['email'] ?? '').toString();
-
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    child: Text(
-                      otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  title: Text(
-                    otherUserName,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      lastMessage,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
-                  ),
-                  trailing: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+      body: Stack(
+        children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: firestore
+                .collection('messages')
+                .where('participants', arrayContains: userSession.userId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final messages = snapshot.data?.docs ?? [];
+              if (messages.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (createdAt != null)
-                        Text(
-                          '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      if (isOnline) ...[
-                        const SizedBox(height: 6),
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
+                      Icon(phicons.PhosphorIconsRegular.chats, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('Aucun message', style: TextStyle(color: Colors.grey)),
                     ],
                   ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          conversationId: conversation.id,
-                          otherUserId: otherUserId,
-                          otherUserName: otherUserName,
-                        ),
-                      ),
-                    );
-                  },
                 );
-              },
-            );
-          },
-        );
-      },
-    ),
-  );
-}
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.only(top: 8, bottom: 80),
+                itemCount: messages.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+                itemBuilder: (context, index) {
+                  final data = messages[index].data() as Map<String, dynamic>;
+                  final conversation = messages[index];
+                  final participants = List<String>.from(data['participants'] ?? []);
+                  final otherUserId = participants.firstWhere(
+                    (id) => id != userSession.userId,
+                    orElse: () => '',
+                  );
+                  final lastMessage = data['lastMessage'] ?? 'Message';
+                  final createdAt = data['createdAt'] as Timestamp?;
+                  final isOnline = data['isOnline'] == true;
+
+                  if (otherUserId.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return StreamBuilder<DocumentSnapshot>(
+                    stream: firestore.collection('users').doc(otherUserId).snapshots(),
+                    builder: (context, userSnapshot) {
+                      if (userSnapshot.hasError) {
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          title: const Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        );
+                      }
+                      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          title: const Text('Utilisateur', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        );
+                      }
+                      final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                      final otherUserName =
+                          (userData['name'] ?? userData['email'] ?? 'Utilisateur').toString();
+                      final otherUserEmail = (userData['email'] ?? '').toString();
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          child: Text(
+                            otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(
+                          otherUserName,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            lastMessage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ),
+                        trailing: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (createdAt != null)
+                              Text(
+                                '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            if (isOnline) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                conversationId: conversation.id,
+                                otherUserId: otherUserId,
+                                otherUserName: otherUserName,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (_showMessageActions)
+                  Column(
+                    children: [
+                      _buildSpeedDialItem(
+                        icon: phicons.PhosphorIconsRegular.chat,
+                        label: 'Nouvelle discussion',
+                        onTap: () {
+                          setState(() => _showMessageActions = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Fonctionnalité de nouvelle discussion à venir')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSpeedDialItem(
+                        icon: phicons.PhosphorIconsRegular.users,
+                        label: 'Nouveau groupe',
+                        onTap: () {
+                          setState(() => _showMessageActions = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Fonctionnalité de groupe à venir')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSpeedDialItem(
+                        icon: phicons.PhosphorIconsRegular.chatCircleDots,
+                        label: 'Messages envoyés',
+                        onTap: () {
+                          setState(() => _showMessageActions = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Fonctionnalité à venir')),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                FloatingActionButton(
+                  onPressed: () {
+                    setState(() => _showMessageActions = !_showMessageActions);
+                  },
+                  backgroundColor: const Color(0xFF4CAF50),
+                  child: Icon(
+                    _showMessageActions ? phicons.PhosphorIconsRegular.x : phicons.PhosphorIconsRegular.chatDots,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedDialItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

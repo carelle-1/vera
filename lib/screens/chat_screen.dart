@@ -9,15 +9,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../auth_service.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String conversationId;
-  final String otherUserId;
-  final String otherUserName;
+  final String? conversationId;
+  final String? otherUserId;
+  final String? otherUserName;
 
   const ChatScreen({
     super.key,
-    required this.conversationId,
-    required this.otherUserId,
-    required this.otherUserName,
+    this.conversationId,
+    this.otherUserId,
+    this.otherUserName,
   });
 
   @override
@@ -258,7 +258,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarColor = _getAvatarColor(widget.otherUserName);
+    final userName = widget.otherUserName ?? 'Utilisateur';
+    final avatarColor = _getAvatarColor(userName);
 
     return Scaffold(
       appBar: AppBar(
@@ -284,8 +285,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 radius: 16,
                 backgroundColor: avatarColor,
                 child: Text(
-                  widget.otherUserName.isNotEmpty
-                      ? widget.otherUserName[0].toUpperCase()
+                  userName.isNotEmpty
+                      ? userName[0].toUpperCase()
                       : '?',
                   style: const TextStyle(
                     color: Colors.white,
@@ -301,7 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.otherUserName,
+                    userName,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
