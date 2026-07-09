@@ -1823,26 +1823,68 @@ SizedBox(
                   end: Alignment.bottomRight,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: _profilePhotoUrl != null
-                        ? NetworkImage(_profilePhotoUrl!)
-                        : const AssetImage('assets/vera.png') as ImageProvider,
-                    backgroundColor: Colors.white,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundImage: _profilePhotoUrl != null
+                              ? NetworkImage(_profilePhotoUrl!)
+                              : const AssetImage('assets/vera.png') as ImageProvider,
+                          backgroundColor: Colors.white,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${_firstNameController.text.isNotEmpty ? _firstNameController.text : "Invité"}',
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Menu de navigation',
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${_firstNameController.text.isNotEmpty ? _firstNameController.text : 'Invité'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Menu de navigation',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: CircularProgressIndicator(
+                                value: _calculateProfileCompletion() / 100,
+                                strokeWidth: 4,
+                                backgroundColor: Colors.white,
+                                color: const Color(0xFF4CAF50),
+                              ),
+                            ),
+                            Text(
+                              '${_calculateProfileCompletion()}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Text(
+                        'profil',
+                        style: TextStyle(color: Colors.white70, fontSize: 10),
+                      ),
+                    ],
                   ),
                 ],
               ),
