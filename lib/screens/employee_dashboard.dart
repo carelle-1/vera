@@ -2906,129 +2906,105 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildProfileView() {
-    return Column(
-      children: [
-        AppBar(
-          toolbarHeight: 32,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF87CEEB), Color.fromARGB(255, 145, 252, 151)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          title: const Text('Profil'),
-          actions: [
-            _buildNotificationButton(),
-          ],
-        ),
-        Expanded(
-          child: Stack(
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [_buildCollapsingAppBar('')];
+      },
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.all(12),
             children: [
-              ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  _buildProfileHeader(),
-                  const SizedBox(height: 12),
-                  _buildProfileMenuItem(
-                    icon: Icons.person,
-                    label: 'Informations personnelles',
-                    onTap: () => _openProfileSheet(
-                      title: 'Informations personnelles',
-                      child: _buildPersonalTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.family_restroom,
-                    label: 'Situation familiale',
-                    onTap: () => _openProfileSheet(
-                      title: 'Situation familiale',
-                      child: _buildFamilyTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.school,
-                    label: 'Formations & Diplômes',
-                    onTap: () => _openProfileSheet(
-                      title: 'Formations & Diplômes',
-                      child: _buildEducationTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.work,
-                    label: 'Expérience professionnelle',
-                    onTap: () => _openProfileSheet(
-                      title: 'Expérience professionnelle',
-                      child: _buildExperienceTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.language,
-                    label: 'Langues & Loisirs',
-                    onTap: () => _openProfileSheet(
-                      title: 'Langues & Loisirs',
-                      child: _buildLanguagesTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.tune,
-                    label: 'Préférences',
-                    onTap: () => _openProfileSheet(
-                      title: 'Préférences',
-                      child: _buildPreferencesTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.info,
-                    label: 'À propos de moi',
-                    onTap: () => _openProfileSheet(
-                      title: 'À propos de moi',
-                      child: _buildAboutTab(),
-                    ),
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.picture_as_pdf,
-                    label: 'Générer mon CV',
-                    onTap: _generateCV,
-                  ),
-                ],
+              _buildProfileHeader(),
+              const SizedBox(height: 12),
+              _buildProfileMenuItem(
+                icon: Icons.person,
+                label: 'Informations personnelles',
+                onTap: () => _openProfileSheet(
+                  title: 'Informations personnelles',
+                  child: _buildPersonalTab(),
+                ),
               ),
-              if (_isLoading)
-                Container(
-                  color: Colors.white.withOpacity(0.7),
-                  child: const Center(
-                    child: Card(
-                      elevation: 8,
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text(
-                              'Génération du CV...',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ],
+              _buildProfileMenuItem(
+                icon: Icons.family_restroom,
+                label: 'Situation familiale',
+                onTap: () => _openProfileSheet(
+                  title: 'Situation familiale',
+                  child: _buildFamilyTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.school,
+                label: 'Formations & Diplômes',
+                onTap: () => _openProfileSheet(
+                  title: 'Formations & Diplômes',
+                  child: _buildEducationTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.work,
+                label: 'Expérience professionnelle',
+                onTap: () => _openProfileSheet(
+                  title: 'Expérience professionnelle',
+                  child: _buildExperienceTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.language,
+                label: 'Langues & Loisirs',
+                onTap: () => _openProfileSheet(
+                  title: 'Langues & Loisirs',
+                  child: _buildLanguagesTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.tune,
+                label: 'Préférences',
+                onTap: () => _openProfileSheet(
+                  title: 'Préférences',
+                  child: _buildPreferencesTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.info,
+                label: 'À propos de moi',
+                onTap: () => _openProfileSheet(
+                  title: 'À propos de moi',
+                  child: _buildAboutTab(),
+                ),
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.picture_as_pdf,
+                label: 'Générer mon CV',
+                onTap: _generateCV,
+              ),
+            ],
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.white.withOpacity(0.7),
+              child: const Center(
+                child: Card(
+                  elevation: 8,
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(
+                          'Génération du CV...',
+                          style: TextStyle(fontWeight: FontWeight.w500),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
-      ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
