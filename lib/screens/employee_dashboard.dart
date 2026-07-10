@@ -96,6 +96,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   final Set<String> _appliedOfferIds = {};
   final Set<String> _pendingAutoApplyOfferIds = {};
   final Set<String> _favoriteOfferIds = {};
+  String _applicationFilter = 'all';
   final PageController _homePageController = PageController();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   final Map<String, int> _compatibilityCache = {};
@@ -1754,7 +1755,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return 'Bonsoir';
   }
 // appbar
-  SliverAppBar _buildCollapsingAppBar(String title) {
+  SliverAppBar _buildCollapsingAppBar(String title, {bool showFilter = false}) {
     return SliverAppBar(
       pinned: true,
       floating: false,
@@ -1814,6 +1815,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       ),
       actions: [
         _buildNotificationButton(),
+        if (showFilter)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list, color: Colors.white),
+            onSelected: (value) {
+              setState(() => _applicationFilter = value);
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'all', child: Text('Toutes')),
+              const PopupMenuItem(value: 'sent', child: Text('Envoyée')),
+              const PopupMenuItem(value: 'pending', child: Text('En attente')),
+              const PopupMenuItem(value: 'accepted', child: Text('Acceptée')),
+              const PopupMenuItem(value: 'rejected', child: Text('Rejetée')),
+            ],
+          ),
         IconButton(
           icon: Icon(_showSearchBarHome ? Icons.close : Icons.search, color: Colors.white),
           onPressed: () {
@@ -4691,7 +4706,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   Widget _buildApplicationsView() {
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
-        return [_buildCollapsingAppBar('')];
+        return [_buildCollapsingAppBar('', showFilter: true)];
       },
       body: StreamBuilder<QuerySnapshot>(
       stream: firestore
@@ -4710,12 +4725,13 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           final bTime = (bData['appliedAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
           return bTime.compareTo(aTime);
         });
-        final appliedApplications = applications.where((doc) {
+        final filteredApplications = applications.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final status = (data['status'] ?? '').toString().toLowerCase();
-          return status == 'accepted';
+          if (_applicationFilter == 'all') return true;
+          return status == _applicationFilter;
         }).toList();
-      if (appliedApplications.isEmpty) {
+      if (filteredApplications.isEmpty) {
         return const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -4729,42 +4745,162 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ),
         );
       }
-      return ListView.builder(
-        padding: const EdgeInsets.all(8),
-        itemCount: appliedApplications.length,
-        itemBuilder: (context, index) {
-          final data = appliedApplications[index].data() as Map<String, dynamic>;
-          final status = data['status'] ?? 'pending';
-            final statusColor = status == 'sent' 
-                ? Colors.green 
-                : status == 'accepted' 
-                    ? Colors.blue 
-                    : Colors.orange;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: ListTile(
-                leading: const Icon(Icons.work, color: Color(0xFF4CAF50)),
-                title: Text(data['offerTitle'] ?? 'Offre inconnue', style: const TextStyle(fontWeight: FontWeight.w500)),
-                subtitle: Text('Statut: ${status == 'sent' ? 'Envoyée' : status == 'accepted' ? 'Acceptée' : 'En attente'}'),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+      return FutureBuilder<Map<String, String>>(
+        future: _fetchOfferDescriptions(filteredApplications),
+        builder: (context, descSnapshot) {
+          final descriptions = descSnapshot.data ?? {};
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: filteredApplications.length,
+            itemBuilder: (context, index) {
+              final data = filteredApplications[index].data() as Map<String, dynamic>;
+              final status = (data['status'] ?? 'pending').toString().toLowerCase();
+              final offerId = (data['offerId'] ?? '').toString();
+              final description = descriptions[offerId] ?? '';
+              final appliedAt = (data['appliedAt'] as Timestamp?)?.toDate();
+              final dateStr = appliedAt != null
+                  ? '${appliedAt.day.toString().padLeft(2, '0')}/${appliedAt.month.toString().padLeft(2, '0')}/${appliedAt.year} ${appliedAt.hour.toString().padLeft(2, '0')}:${appliedAt.minute.toString().padLeft(2, '0')}'
+                  : '';
+              final statusColor = status == 'sent'
+                  ? Colors.green
+                  : status == 'accepted'
+                      ? Colors.blue
+                      : status == 'rejected'
+                          ? Colors.red
+                          : Colors.orange;
+              final statusLabel = status == 'sent'
+                  ? 'Envoyée'
+                  : status == 'accepted'
+                      ? 'Acceptée'
+                      : status == 'rejected'
+                          ? 'Rejetée'
+                          : 'En attente';
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.work, color: Color(0xFF4CAF50)),
+                  title: Text(
+                    data['offerTitle'] ?? 'Offre inconnue',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: Text(
-                    status == 'sent' ? 'Envoyée' : status == 'accepted' ? 'Acceptée' : 'En attente',
-                    style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+                  subtitle: description.isEmpty
+                      ? Text(
+                          dateStr,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Text(
+                          description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                   ),
+                  onTap: () => _showApplicationDetail(data, description, dateStr, statusLabel),
                 ),
+              );
+            },
+          );
+        },
+      );
+    },
+  ),
+);
+  }
+
+  Future<Map<String, String>> _fetchOfferDescriptions(List<QueryDocumentSnapshot> applications) async {
+    final Map<String, String> result = {};
+    for (final doc in applications) {
+      final data = doc.data() as Map<String, dynamic>;
+      final offerId = (data['offerId'] ?? '').toString();
+      if (offerId.isEmpty) continue;
+      try {
+        final offerDoc = await firestore.collection('job_offers').doc(offerId).get();
+        if (offerDoc.exists && offerDoc.data() != null) {
+          result[offerId] = (offerDoc.data()!['description'] ?? '').toString();
+        }
+      } catch (_) {}
+    }
+    return result;
+  }
+
+  void _showApplicationDetail(Map<String, dynamic> data, String description, String dateStr, String statusLabel) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               ),
-            );
-          },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    height: 4,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Text(
+                    data['offerTitle'] ?? 'Offre inconnue',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    description.isEmpty ? 'Aucune description disponible.' : description,
+                    style: const TextStyle(fontSize: 14, height: 1.5),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Statut: $statusLabel',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Postulé le: $dateStr',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildAboutTab() {
     return SingleChildScrollView(
