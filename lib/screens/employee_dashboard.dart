@@ -110,7 +110,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     return firestore
         .collection('jobseeker_notifications')
         .where('userId', isEqualTo: userSession.userId)
-        .limit(10)
+        .where('read', isEqualTo: false)
+        .limit(30)
         .snapshots();
   }
 
@@ -1529,6 +1530,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                           final preview = body.isEmpty
                               ? 'Voir les détails'
                               : body.split('.').first + '.';
+                          final createdAt = data['createdAt'] as Timestamp?;
+                          final dateText = createdAt != null
+                              ? '${createdAt.toDate().day.toString().padLeft(2, '0')}/${createdAt.toDate().month.toString().padLeft(2, '0')}/${createdAt.toDate().year} ${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}'
+                              : '';
                           return ListTile(
                             leading: Icon(
                               data['automatic'] == true
@@ -1538,8 +1543,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                             ),
                             title: Text(data['title'] ?? 'Notification'),
                             subtitle: Text(
-                              preview,
-                              maxLines: 1,
+                              '$preview${dateText.isEmpty ? "" : "\n$dateText"}',
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             trailing: data['read'] == false
