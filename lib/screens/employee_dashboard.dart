@@ -2822,11 +2822,19 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                     children: [
                       _buildSpeedDialItem(
                         icon: phicons.PhosphorIconsRegular.chat,
-                        label: 'Nouvelle discussion',
+                        label: 'IA_VERA',
                         onTap: () {
                           setState(() => _showMessageActions = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Fonctionnalité de nouvelle discussion à venir')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                conversationId: null,
+                                otherUserId: null,
+                                otherUserName: 'IA_VERA',
+                                isIaMode: true,
+                              ),
+                            ),
                           );
                         },
                       ),

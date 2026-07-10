@@ -6,18 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../auth_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? conversationId;
   final String? otherUserId;
   final String? otherUserName;
+  final bool isIaMode;
 
   const ChatScreen({
     super.key,
     this.conversationId,
     this.otherUserId,
     this.otherUserName,
+    this.isIaMode = false,
   });
 
   @override
@@ -31,6 +34,78 @@ class _ChatScreenState extends State<ChatScreen> {
   int _unreadCount = 0;
 
   bool _isUploading = false;
+  final List<Map<String, dynamic>> _iaMessages = [];
+  bool _isIaThinking = false;
+
+  static const _veraContext = '''
+Tu es IA_VERA, assistant officiel de la plateforme VERA.
+Réponds uniquement aux questions concernant VERA et la recherche d'emploi.
+Sois clair, concis et professionnel.
+
+Contexte:
+- VERA est une plateforme de recherche d'emploi intelligente.
+- Les chercheurs peuvent postuler automatiquement à des offres compatibles.
+- Les utilisateurs peuvent créer leur profil, ajouter leurs compétences, diplômes et expériences.
+- VERA suggère des offres selon la compatibilité avec le profil.
+- L'objectif est d'aider les candidats à atteindre leurs objectifs de carrière.
+''';
+
+  Future<void> _sendIaMessage(String text) async {
+    if (text.trim().isEmpty) return;
+    setState(() {
+      _iaMessages.add({'sender': 'user', 'text': text.trim()});
+      _isIaThinking = true;
+    });
+    _messageController.clear();
+    _scrollToBottom();
+
+    try {
+      final apiKey = const String.fromEnvironment('GEMINI_API_KEY');
+      if (apiKey.isEmpty) {
+        setState(() {
+          _iaMessages.add({'sender': 'ia', 'text': 'Clé API IA manquante. Lancez l\'application avec --dart-define=GEMINI_API_KEY=votre_cle.'});
+          _isIaThinking = false;
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      final models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.0-pro'];
+      String? lastError;
+
+      for (final name in models) {
+        try {
+          final model = GenerativeModel(model: name, apiKey: apiKey);
+          final chat = model.startChat();
+          final response = await chat.sendMessage(Content.text(text.trim()));
+          final reply = response.text ?? 'Désolé, je n\'ai pas compris.';
+          setState(() {
+            _iaMessages.add({'sender': 'ia', 'text': reply});
+            _isIaThinking = false;
+          });
+          _scrollToBottom();
+          return;
+        } catch (e) {
+          lastError = e.toString();
+          continue;
+        }
+      }
+
+      setState(() {
+        _iaMessages.add({
+          'sender': 'ia',
+          'text': 'IA_VERA est momentanément indisponible pour cette clé API.\nDétail : $lastError\nVérifie l\'activation de l\'API Generative Language dans Google AI Studio / Google Cloud, ou utilise une autre clé autorisée.',
+        });
+        _isIaThinking = false;
+      });
+    } catch (e) {
+      setState(() {
+        _iaMessages.add({'sender': 'ia', 'text': 'Erreur: ${e.toString()}'});
+        _isIaThinking = false;
+      });
+    }
+    _scrollToBottom();
+  }
 
   @override
   void dispose() {
@@ -50,6 +125,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendMessage({String? text, String? type, String? fileUrl, String? fileName}) async {
+    if (widget.isIaMode) {
+      await _sendIaMessage(text ?? '');
+      return;
+    }
+
     final messageText = (text ?? '').trim();
     if (messageText.isEmpty && type == null) return;
     if (userSession.userId == null) return;
@@ -263,9 +343,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: avatarColor,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         titleSpacing: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.lightBlue, Colors.lightGreenAccent],
+            ),
+          ),
+        ),
         leading: Badge.count(
           backgroundColor: Colors.red,
           count: _unreadCount,
@@ -324,180 +413,243 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('messages')
-                  .doc(widget.conversationId)
-                  .collection('chat_messages')
-                  .orderBy('createdAt')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snapshot.data?.docs ?? [];
-                if (docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Aucun message. Envoyez le premier message.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final isMe = data['senderId'] == userSession.userId;
-                    final String? type = data['type'] as String?;
-                    final text = (data['text'] ?? '').toString();
-                    final fileUrl = (data['fileUrl'] ?? '').toString();
-                    final fileName = (data['fileName'] ?? '').toString();
-                    final createdAt = data['createdAt'] as Timestamp?;
-                    final time = createdAt != null
-                        ? '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}'
-                        : '';
+            child: widget.isIaMode
+                ? (_iaMessages.isEmpty && !_isIaThinking)
+                    ? const Center(
+                        child: Text(
+                          'Envoyez un message à IA_VERA pour commencer.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        itemCount: _iaMessages.length + (_isIaThinking ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _iaMessages.length) {
+                            return Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 3),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00BCD4)),
+                                ),
+                              ),
+                            );
+                          }
 
-                    Widget? mediaContent;
-                    if (type == 'image' && fileUrl.isNotEmpty) {
-                      mediaContent = InkWell(
-                        onTap: () => _openUrl(fileUrl),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            fileUrl,
-                            width: 220,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return const Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              width: 220,
-                              height: 150,
-                              color: Colors.black26,
-                              child: const Icon(Icons.broken_image, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      );
-                    } else if (type == 'file' && fileUrl.isNotEmpty) {
-                      mediaContent = InkWell(
-                        onTap: () => _openUrl(fileUrl),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: isMe ? Colors.white24 : const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                           child: Row(
-                             children: [
-                               Container(
-                                 width: 40,
-                                 height: 40,
-                                 decoration: BoxDecoration(
-                                   color: isMe ? Colors.white30 : const Color(0xFFE0E0E0),
-                                   borderRadius: BorderRadius.circular(8),
-                                 ),
-                                 child: const Icon(Icons.insert_drive_file, color: Color(0xFF00BCD4)),
-                               ),
-                               const SizedBox(width: 12),
-                               Expanded(
-                                 child: Column(
-                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                   children: [
-                                     Text(
-                                       fileName.isNotEmpty ? fileName : 'Fichier',
-                                       style: TextStyle(
-                                         color: isMe ? Colors.white : Colors.black87,
-                                         fontWeight: FontWeight.w600,
-                                       ),
-                                       maxLines: 1,
-                                       overflow: TextOverflow.ellipsis,
-                                     ),
-                                     const SizedBox(height: 4),
-                                     Text(
-                                       'Ouvrir le fichier',
-                                       style: TextStyle(
-                                         color: isMe ? Colors.white70 : const Color(0xFF00BCD4),
-                                         fontSize: 12,
-                                       ),
-                                     ),
-                                   ],
-                                 ),
-                               ),
-                             ],
-                           ),
-                        ),
-                      );
-                    }
+                          final message = _iaMessages[index];
+                          final isMe = message['sender'] == 'user';
+                          final avatarColor = _getAvatarColor(widget.otherUserName ?? 'IA');
 
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 3),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.72,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe ? avatarColor : Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 0),
-                            bottomRight: Radius.circular(isMe ? 0 : 16),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (text.isNotEmpty && type != null)
-                              Text(
-                                text,
+                          return Align(
+                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context).size.width * 0.72,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMe ? avatarColor : Colors.white,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                  bottomRight: Radius.circular(isMe ? 0 : 16),
+                                ),
+                              ),
+                              child: Text(
+                                message['text']?.toString() ?? '',
                                 style: TextStyle(
                                   color: isMe ? Colors.white : Colors.black87,
                                   fontSize: 14,
                                   height: 1.35,
                                 ),
                               ),
-                            if (text.isNotEmpty && type != null)
-                              const SizedBox(height: 8),
-                            if (mediaContent != null) mediaContent!,
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  time,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isMe ? Colors.white70 : Colors.black54,
+                            ),
+                          );
+                        },
+                      )
+                : StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('messages')
+                        .doc(widget.conversationId)
+                        .collection('chat_messages')
+                        .orderBy('createdAt')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final docs = snapshot.data?.docs ?? [];
+                      if (docs.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'Aucun message. Envoyez le premier message.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        );
+                      }
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final data = docs[index].data() as Map<String, dynamic>;
+                          final isMe = data['senderId'] == userSession.userId;
+                          final String? type = data['type'] as String?;
+                          final text = (data['text'] ?? '').toString();
+                          final fileUrl = (data['fileUrl'] ?? '').toString();
+                          final fileName = (data['fileName'] ?? '').toString();
+                          final createdAt = data['createdAt'] as Timestamp?;
+                          final time = createdAt != null
+                              ? '${createdAt.toDate().hour.toString().padLeft(2, '0')}:${createdAt.toDate().minute.toString().padLeft(2, '0')}'
+                              : '';
+
+                          Widget? mediaContent;
+                          if (type == 'image' && fileUrl.isNotEmpty) {
+                            mediaContent = InkWell(
+                              onTap: () => _openUrl(fileUrl),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  fileUrl,
+                                  width: 220,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, progress) {
+                                    if (progress == null) return child;
+                                    return const Padding(
+                                      padding: EdgeInsets.all(20),
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: 220,
+                                    height: 150,
+                                    color: Colors.black26,
+                                    child: const Icon(Icons.broken_image, color: Colors.white),
                                   ),
                                 ),
-                                if (isMe) ...[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.done_all,
-                                    size: 14,
-                                    color: Colors.white70,
+                              ),
+                            );
+                          } else if (type == 'file' && fileUrl.isNotEmpty) {
+                            mediaContent = InkWell(
+                              onTap: () => _openUrl(fileUrl),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isMe ? Colors.white24 : const Color(0xFFF5F5F5),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: isMe ? Colors.white30 : const Color(0xFFE0E0E0),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(Icons.insert_drive_file, color: Color(0xFF00BCD4)),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            fileName.isNotEmpty ? fileName : 'Fichier',
+                                            style: TextStyle(
+                                              color: isMe ? Colors.white : Colors.black87,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Ouvrir le fichier',
+                                            style: TextStyle(
+                                              color: isMe ? Colors.white70 : const Color(0xFF00BCD4),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return Align(
+                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context).size.width * 0.72,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMe ? avatarColor : Colors.white,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                  bottomRight: Radius.circular(isMe ? 0 : 16),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (text.isNotEmpty)
+                                    Text(
+                                      text,
+                                      style: TextStyle(
+                                        color: isMe ? Colors.white : Colors.black87,
+                                        fontSize: 14,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  if (mediaContent != null) mediaContent,
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        time,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isMe ? Colors.white70 : Colors.black54,
+                                        ),
+                                      ),
+                                      if (isMe) ...[
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.done_all,
+                                          size: 14,
+                                          color: Colors.white70,
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
           Container(
             padding: EdgeInsets.only(
