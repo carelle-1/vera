@@ -895,44 +895,44 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     switch (_profilePageIndex) {
       case 1:
         total += 5;
-        if (_selectedMaritalStatus != null) filled++;
+        if (_selectedMaritalStatus != null) filled += 5;
         total += 5;
-        if (_childrenCountController.text.isNotEmpty) filled++;
+        if (_childrenCountController.text.isNotEmpty) filled += 5;
         break;
       case 2:
         total += 10;
-        if (_diplomas.isNotEmpty) filled++;
+        if (_diplomas.isNotEmpty) filled += 10;
         break;
       case 3:
         total += 10;
-        if (_currentSalaryController.text.isNotEmpty) filled++;
+        if (_currentSalaryController.text.isNotEmpty) filled += 10;
         total += 10;
-        if (_experienceMonthsController.text.isNotEmpty) filled++;
+        if (_experienceMonthsController.text.isNotEmpty) filled += 10;
         total += 10;
-        if (_experienceYearsController.text.isNotEmpty) filled++;
+        if (_experienceYearsController.text.isNotEmpty) filled += 10;
         total += 10;
         if (_isCurrentlyWorking && _currentPositionController.text.isNotEmpty)
-          filled++;
+          filled += 10;
         total += 10;
-        if (_isCurrentlyWorking && _selectedContractType != null) filled++;
+        if (_isCurrentlyWorking && _selectedContractType != null) filled += 10;
         break;
       case 4:
         total += 10;
-        if (_languages.isNotEmpty) filled++;
+        if (_languages.isNotEmpty) filled += 10;
         total += 10;
-        if (_hobbies.isNotEmpty) filled++;
+        if (_hobbies.isNotEmpty) filled += 10;
         break;
       case 5:
         total += 10;
-        if (_availabilityController.text.isNotEmpty) filled++;
+        if (_availabilityController.text.isNotEmpty) filled += 10;
         total += 10;
-        if (_desiredSalaryController.text.isNotEmpty) filled++;
+        if (_desiredSalaryController.text.isNotEmpty) filled += 10;
         total += 10;
-        if (_selectedWorkMode != null) filled++;
+        if (_selectedWorkMode != null) filled += 10;
         break;
       case 6:
         total += 10;
-        if (_aboutController.text.isNotEmpty) filled++;
+        if (_aboutController.text.isNotEmpty) filled += 10;
         break;
     }
     return total > 0 ? ((filled / total) * 100).round() : 0;
@@ -942,43 +942,43 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     int total = 0;
     int filled = 0;
     total += 5;
-    if (_firstNameController.text.isNotEmpty) filled++;
+    if (_firstNameController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_lastNameController.text.isNotEmpty) filled++;
+    if (_lastNameController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_emailController.text.isNotEmpty) filled++;
+    if (_emailController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_phoneController.text.isNotEmpty) filled++;
+    if (_phoneController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_countryController.text.isNotEmpty) filled++;
+    if (_countryController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_cityController.text.isNotEmpty) filled++;
+    if (_cityController.text.isNotEmpty) filled += 5;
     total += 5;
-    if (_selectedMaritalStatus != null) filled++;
+    if (_selectedMaritalStatus != null) filled += 5;
     total += 5;
-    if (_childrenCountController.text.isNotEmpty) filled++;
+    if (_childrenCountController.text.isNotEmpty) filled += 5;
     total += 10;
-    if (_languages.isNotEmpty) filled++;
+    if (_languages.isNotEmpty) filled += 10;
     total += 10;
-    if (_hobbies.isNotEmpty) filled++;
+    if (_hobbies.isNotEmpty) filled += 10;
     total += 10;
-    if (_experienceMonthsController.text.isNotEmpty) filled++;
+    if (_experienceMonthsController.text.isNotEmpty) filled += 10;
     total += 10;
-    if (_experienceYearsController.text.isNotEmpty) filled++;
+    if (_experienceYearsController.text.isNotEmpty) filled += 10;
     if (_isCurrentlyWorking) {
       total += 10;
-      if (_currentPositionController.text.isNotEmpty) filled++;
+      if (_currentPositionController.text.isNotEmpty) filled += 10;
       total += 10;
-      if (_selectedContractType != null) filled++;
+      if (_selectedContractType != null) filled += 10;
     }
     total += 10;
-    if (_availabilityController.text.isNotEmpty) filled++;
+    if (_availabilityController.text.isNotEmpty) filled += 10;
     total += 10;
-    if (_selectedWorkMode != null) filled++;
+    if (_selectedWorkMode != null) filled += 10;
     total += 10;
-    if (_aboutController.text.isNotEmpty) filled++;
+    if (_aboutController.text.isNotEmpty) filled += 10;
     total += 10;
-    if (_diplomas.isNotEmpty) filled++;
+    if (_diplomas.isNotEmpty) filled += 10;
     return total > 0 ? ((filled / total) * 100).round() : 0;
   }
 
