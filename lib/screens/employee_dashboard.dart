@@ -285,47 +285,69 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         'userName': '${_firstNameController.text} ${_lastNameController.text}',
         'userEmail': _emailController.text,
         'contactEmail': contactEmail,
-        'status': contactEmail.isNotEmpty ? 'sent' : 'pending',
+        'status': 'pending',
         'appliedAt': FieldValue.serverTimestamp(),
       });
 
-      final response = await http.post(
-        Uri.parse('http://192.168.189.89/VERA/apply.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'offerId': offerId,
-          'userId': userSession.userId,
-          'idToken': idToken,
-          'firstName': _firstNameController.text,
-          'lastName': _lastNameController.text,
-          'email': _emailController.text,
-          'phone': _phoneController.text,
-          'city': _cityController.text,
-          'country': _countryController.text,
-          'about': _aboutController.text,
-          'desiredSalary': _desiredSalaryController.text,
-          'workMode': _selectedWorkMode ?? '',
-          'experienceYears': _experienceYearsController.text,
-          'experienceMonths': _experienceMonthsController.text,
-          'diplomas': _diplomas,
-          'title': offerTitle,
-          'contactEmail': contactEmail,
-        }),
-      );
+      setState(() => _appliedOfferIds.add(offerId));
+
+      final response = await http
+          .post(
+            Uri.parse('http://192.168.170.89/VERA/apply.php'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'offerId': offerId,
+              'userId': userSession.userId,
+              'idToken': idToken,
+              'firstName': _firstNameController.text,
+              'lastName': _lastNameController.text,
+              'email': _emailController.text,
+              'phone': _phoneController.text,
+              'city': _cityController.text,
+              'country': _countryController.text,
+              'about': _aboutController.text,
+              'desiredSalary': _desiredSalaryController.text,
+              'workMode': _selectedWorkMode ?? '',
+              'experienceYears': _experienceYearsController.text,
+              'experienceMonths': _experienceMonthsController.text,
+              'diplomas': _diplomas,
+              'title': offerTitle,
+              'contactEmail': contactEmail,
+            }),
+          )
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode != 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Erreur serveur - candidature non envoyée')),
+          String? responsePreview;
+          try {
+            responsePreview = response.body;
+          } catch (_) {}
+          showDialog(
+            context: context,
+            builder: (dialogContext) {
+              final message = responsePreview != null && responsePreview.isNotEmpty
+                  ? responsePreview
+                  : 'Erreur serveur (${response.statusCode})';
+              return AlertDialog(
+                title: const Text("Erreur serveur"),
+                content: Text(message),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              );
+            },
           );
         }
-        setState(() => _appliedOfferIds.add(offerId));
         return;
       }
 
       final data = jsonDecode(response.body);
       if (data['success'] == true) {
-        setState(() => _appliedOfferIds.add(offerId));
+        await applicationRef.update({'status': 'sent'});
         if (mounted) {
           final notificationTitle =
               automatic ? 'Candidature automatique envoyee' : 'Candidature envoyee';
@@ -357,15 +379,30 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['message'] ?? 'Erreur lors de la candidature')),
+          final errorMessage = (data['message'] ?? 'Erreur lors de la candidature').toString();
+          final errorDetail = (data['error_detail'] ?? data['php_error'] ?? '').toString();
+          final extra = (errorDetail.isEmpty ? '' : '\n\nDétail : $errorDetail');
+          showDialog(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text("Erreur lors de la candidature"),
+              content: Text(errorMessage + extra),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
+        final errorMsg = e.toString();
+        final isTimeout = errorMsg.contains('TimeoutException') || errorMsg.contains('connection timed out');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: ${e.toString()}')),
+          SnackBar(content: Text(isTimeout ? 'Délai dépassé : vérifie le serveur apply.php' : 'Erreur: $errorMsg')),
         );
       }
     } finally {

@@ -1442,7 +1442,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   Future<void> _sendPushNotification(String token, String title, String body) async {
     try {
       await http.post(
-        Uri.parse('http://192.168.189.89/VERA/send_notification.php'),
+            Uri.parse('http://192.168.170.89/VERA/send_notification.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'token': token,
