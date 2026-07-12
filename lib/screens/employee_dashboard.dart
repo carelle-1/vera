@@ -3330,33 +3330,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   Widget _buildDefaultCompanyLogo(String company, {double size = 36}) {
-    final initial = company.isNotEmpty ? company[0].toUpperCase() : '?';
-    final colors = [
-      Color(0xFF4CAF50),
-      Color(0xFF2196F3),
-      Color(0xFFFF9800),
-      Color(0xFF9C27B0),
-      Color(0xFFF44336),
-      Color(0xFF00BCD4),
-    ];
-    final color = colors[company.hashCode.abs() % colors.length];
-    return Container(
+    return Image.asset(
+      'assets/logo_defaut.png',
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(size * 0.15),
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: size * 0.45,
-          ),
-        ),
-      ),
+      fit: BoxFit.contain,
     );
   }
 
@@ -4782,10 +4760,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ),
         );
       }
-      return FutureBuilder<Map<String, String>>(
-        future: _fetchOfferDescriptions(filteredApplications),
-        builder: (context, descSnapshot) {
-          final descriptions = descSnapshot.data ?? {};
+      return FutureBuilder<Map<String, Map<String, String?>>>(
+        future: _fetchOfferMeta(filteredApplications),
+        builder: (context, metaSnapshot) {
+          final meta = metaSnapshot.data ?? {};
           return ListView.builder(
             padding: const EdgeInsets.all(8),
             itemCount: filteredApplications.length,
@@ -4793,7 +4771,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               final data = filteredApplications[index].data() as Map<String, dynamic>;
               final status = (data['status'] ?? 'pending').toString().toLowerCase();
               final offerId = (data['offerId'] ?? '').toString();
-              final description = descriptions[offerId] ?? '';
+              final offerMeta = meta[offerId] ?? {};
+              final description = offerMeta['description'] ?? '';
+              final logoUrl = offerMeta['logoUrl'];
               final appliedAt = (data['appliedAt'] as Timestamp?)?.toDate();
               final dateStr = appliedAt != null
                   ? '${appliedAt.day.toString().padLeft(2, '0')}/${appliedAt.month.toString().padLeft(2, '0')}/${appliedAt.year} ${appliedAt.hour.toString().padLeft(2, '0')}:${appliedAt.minute.toString().padLeft(2, '0')}'
@@ -4815,7 +4795,22 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 child: ListTile(
-                  leading: const Icon(Icons.work, color: Color(0xFF4CAF50)),
+                  leading: logoUrl != null && logoUrl.isNotEmpty
+                      ? CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.white,
+                          child: ClipOval(
+                            child: Image.network(
+                              logoUrl,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildDefaultCompanyLogo(data['offerTitle'] ?? '', size: 40),
+                            ),
+                          ),
+                        )
+                      : _buildDefaultCompanyLogo(data['offerTitle'] ?? '', size: 40),
                   title: Text(
                     data['offerTitle'] ?? 'Offre inconnue',
                     style: const TextStyle(fontWeight: FontWeight.w500),
@@ -4844,7 +4839,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                       style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  onTap: () => _showApplicationDetail(data, description, dateStr, statusLabel),
+                  onTap: () => _showApplicationDetail(data, description, dateStr, statusLabel, logoUrl),
                 ),
               );
             },
@@ -4856,8 +4851,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 );
   }
 
-  Future<Map<String, String>> _fetchOfferDescriptions(List<QueryDocumentSnapshot> applications) async {
-    final Map<String, String> result = {};
+  Future<Map<String, Map<String, String?>>> _fetchOfferMeta(List<QueryDocumentSnapshot> applications) async {
+    final Map<String, Map<String, String?>> result = {};
     for (final doc in applications) {
       final data = doc.data() as Map<String, dynamic>;
       final offerId = (data['offerId'] ?? '').toString();
@@ -4865,14 +4860,22 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       try {
         final offerDoc = await firestore.collection('job_offers').doc(offerId).get();
         if (offerDoc.exists && offerDoc.data() != null) {
-          result[offerId] = (offerDoc.data()!['description'] ?? '').toString();
+          final offerData = offerDoc.data()!;
+          result[offerId] = {
+            'description': (offerData['description'] ?? '').toString(),
+            'logoUrl': (offerData['logoUrl'] ?? '').toString(),
+          };
+        } else {
+          result[offerId] = {'description': '', 'logoUrl': ''};
         }
-      } catch (_) {}
+      } catch (_) {
+        result[offerId] = {'description': '', 'logoUrl': ''};
+      }
     }
     return result;
   }
 
-  void _showApplicationDetail(Map<String, dynamic> data, String description, String dateStr, String statusLabel) {
+  void _showApplicationDetail(Map<String, dynamic> data, String description, String dateStr, String statusLabel, [String? logoUrl]) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -4906,9 +4909,32 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  Text(
-                    data['offerTitle'] ?? 'Offre inconnue',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.white,
+                        child: logoUrl != null && logoUrl.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  logoUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _buildDefaultCompanyLogo(data['offerTitle'] ?? '', size: 48),
+                                ),
+                              )
+                            : _buildDefaultCompanyLogo(data['offerTitle'] ?? '', size: 48),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          data['offerTitle'] ?? 'Offre inconnue',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Text(

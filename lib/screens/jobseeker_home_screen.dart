@@ -203,33 +203,11 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
   }
 
   Widget _buildDefaultCompanyLogo(String company, {double size = 50}) {
-    final initial = company.isNotEmpty ? company[0].toUpperCase() : '?';
-    final colors = [
-      Color(0xFF4CAF50),
-      Color(0xFF2196F3),
-      Color(0xFFFF9800),
-      Color(0xFF9C27B0),
-      Color(0xFFF44336),
-      Color(0xFF00BCD4),
-    ];
-    final color = colors[company.hashCode.abs() % colors.length];
-    return Container(
+    return Image.asset(
+      'assets/logo_defaut.png',
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(size * 0.15),
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: size * 0.45,
-          ),
-        ),
-      ),
+      fit: BoxFit.contain,
     );
   }
 
