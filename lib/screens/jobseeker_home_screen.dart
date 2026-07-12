@@ -32,6 +32,14 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
   }
 
   void _showOfferDetails(Map<String, dynamic> data, String offerId) {
+    final company = (data['company'] ?? '').trim();
+    final city = (data['city'] ?? '').trim();
+    final country = (data['country'] ?? '').trim();
+    final salary = (data['salary'] ?? '').trim();
+    final contract = (data['contract'] ?? '').trim();
+    final description = (data['description'] ?? '').trim();
+    final location = [city, country].where((e) => e.isNotEmpty).join(', ');
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -78,42 +86,37 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _favoriteOfferIds.contains(offerId)
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: const Color(0xFF4CAF50),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (_favoriteOfferIds.contains(offerId)) {
-                          _favoriteOfferIds.remove(offerId);
-                        } else {
-                          _favoriteOfferIds.add(offerId);
-                        }
-                      });
-                    },
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Entreprise: ${data['company'] ?? ''}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Localisation: ${data['city'] ?? ''}, ${data['country'] ?? ''}'),
-              const SizedBox(height: 8),
-              Text('Salaire: ${data['salary'] ?? 'Non mentionné'}'),
-              const SizedBox(height: 8),
-              Text(
-                  'Type de contrat: ${data['contract'] ?? 'Non mentionné'}'),
-              const SizedBox(height: 16),
-              const Text('Description:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(data['description'] ?? ''),
+              if (company.isNotEmpty) ...[
+                Text('Entreprise: $company',
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+              ],
+              if (location.isNotEmpty) ...[
+                Text('Localisation: $location'),
+                const SizedBox(height: 8),
+              ],
+              if (salary.isNotEmpty) ...[
+                Text('Salaire: $salary'),
+                const SizedBox(height: 8),
+              ],
+              if (contract.isNotEmpty) ...[
+                Text('Type de contrat: $contract'),
+                const SizedBox(height: 8),
+              ],
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                const Text('Description:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(description),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -238,6 +241,10 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
             final isNew = createdAt != null &&
                 DateTime.now().difference(createdAt.toDate()).inDays < 7;
             final compatibility = _calculateCompatibility(data);
+            final descriptionPreview = (data['description'] ?? '').toString().trim();
+            final city = (data['city'] ?? '').toString().trim();
+            final country = (data['country'] ?? '').toString().trim();
+            final locationText = [city, country].where((e) => e.isNotEmpty).join(', ');
 
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -294,13 +301,26 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                '${data['country'] ?? ''}${data['city'] != null && data['city'].toString().isNotEmpty ? ' • ${data['city']}' : ''}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 13,
+                              if (descriptionPreview.isNotEmpty) ...[
+                                Text(
+                                  descriptionPreview,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 4),
+                              ],
+                              if (locationText.isNotEmpty)
+                                Text(
+                                  locationText,
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               const SizedBox(height: 4),
                               if (skillsDisplay.isNotEmpty)
                                 Text(

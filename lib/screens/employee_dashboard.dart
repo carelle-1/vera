@@ -1422,7 +1422,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       data['description'],
       data['title'],
       data['company'],
-      data['source'],
       data['url'],
     ];
     for (final value in values) {
@@ -3425,16 +3424,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (data['source'] != null) ...[
-                            Text(
-                              'Source: ${data['source']}',
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
                           Text(
                             'Entreprise: ${data['company'] ?? ''}',
                             style: const TextStyle(
