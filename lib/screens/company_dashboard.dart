@@ -32,6 +32,10 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
 
   int _currentIndex = 0;
   int _unreadMessageCount = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _showSearchBar = false;
+  String _searchQuery = '';
+  String? _companyLogoUrl;
 
   // --- Offres ---
   final _offerFormKey = GlobalKey<FormState>();
@@ -63,6 +67,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   final _phoneController = TextEditingController();
   final _websiteController = TextEditingController();
   final _aboutController = TextEditingController();
+  final _commentController = TextEditingController();
 
   // --- Utilisateurs ---
   String _userSearch = '';
@@ -141,6 +146,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     _phoneController.dispose();
     _websiteController.dispose();
     _aboutController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -177,6 +183,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           if (_companyController.text.isEmpty) {
             _companyController.text = data['name'] ?? '';
           }
+          _companyLogoUrl = data['companyLogoUrl'] as String?;
         });
       }
     } catch (e) {}
@@ -189,6 +196,38 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
       Navigator.of(context)
           .pushNamedAndRemoveUntil('/login', (route) => false);
     }
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Non'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _logout();
+            },
+            child: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF00BCD4),
+                    ),
+                  )
+                : const Text('Oui'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -400,6 +439,45 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           final data = jsonDecode(respStr);
           if (data['secure_url'] != null) {
             setState(() => _logoUrl = data['secure_url']);
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur upload: ${e.toString()}')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _pickCompanyLogo() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() => _isLoading = true);
+      try {
+        final bytes = await picked.readAsBytes();
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('https://api.cloudinary.com/v1_1/demjpkcfj/image/upload'),
+        );
+        request.fields['upload_preset'] = 'vera2026';
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: picked.path.split('/').last,
+          ),
+        );
+        final response = await request.send();
+        final respStr = await response.stream.bytesToString();
+        if (response.statusCode == 200) {
+          final data = jsonDecode(respStr);
+          if (data['secure_url'] != null) {
+            setState(() => _companyLogoUrl = data['secure_url']);
           }
         }
       } catch (e) {
@@ -814,16 +892,34 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           return (bDate?.toDate() ?? DateTime(1970))
               .compareTo(aDate?.toDate() ?? DateTime(1970));
         });
+        final query = _searchQuery.trim().toLowerCase();
+        final filtered = query.isEmpty
+            ? offers
+            : offers.where((doc) {
+                final d = doc.data() as Map<String, dynamic>;
+                final haystack = [
+                  d['title'] ?? '',
+                  d['company'] ?? '',
+                  d['city'] ?? '',
+                  d['country'] ?? '',
+                ].join(' ').toLowerCase();
+                return haystack.contains(query);
+              }).toList();
         if (offers.isEmpty) {
           return const Center(
             child: Text('Aucune offre. Ajoutez votre première offre.'),
           );
         }
+        if (filtered.isEmpty) {
+          return const Center(
+            child: Text('Aucune offre ne correspond à votre recherche.'),
+          );
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(8),
-          itemCount: offers.length,
+          itemCount: filtered.length,
           itemBuilder: (context, index) {
-            final offer = offers[index];
+            final offer = filtered[index];
             final data = offer.data() as Map<String, dynamic>?;
             return Card(
               child: ListTile(
@@ -960,6 +1056,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   }
 
   Future<void> _openJobSeekerDetail(String userId, Map<String, dynamic> userData) async {
+    _commentController.clear();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1035,6 +1132,61 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                               .toList(),
                         ),
                       ],
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      const Text('Commentaire',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      FutureBuilder<DocumentSnapshot>(
+                        future: firestore
+                            .collection('jobseekers')
+                            .doc(userId)
+                            .collection('comments')
+                            .doc(userSession.userId)
+                            .get(),
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            );
+                          }
+                          final existing =
+                              snap.data?.data() as Map<String, dynamic>?;
+                          if (snap.hasData &&
+                              _commentController.text.isEmpty) {
+                            _commentController.text = existing?['text'] ?? '';
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                controller: _commentController,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Ajouter un commentaire sur ce chercheur...',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFFAFAFA),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton.icon(
+                                onPressed: () => _saveComment(userId),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00BCD4),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.save),
+                                label: const Text('Enregistrer le commentaire'),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(height: 20),
                       Center(
                         child: ElevatedButton.icon(
@@ -1130,6 +1282,42 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Future<void> _saveComment(String userId) async {
+    final text = _commentController.text.trim();
+    if (userSession.userId == null) return;
+    if (text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Le commentaire est vide.')),
+        );
+      }
+      return;
+    }
+    try {
+      await firestore
+          .collection('jobseekers')
+          .doc(userId)
+          .collection('comments')
+          .doc(userSession.userId)
+          .set({
+        'companyId': userSession.userId,
+        'text': text,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Commentaire enregistré')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   Future<void> _saveCompanyProfile() async {
     if (!_settingsFormKey.currentState!.validate()) return;
     if (userSession.userId == null) return;
@@ -1140,6 +1328,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         'phone': _phoneController.text.trim(),
         'website': _websiteController.text.trim(),
         'about': _aboutController.text.trim(),
+        'companyLogoUrl': _companyLogoUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       if (mounted) {
@@ -1166,10 +1355,31 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const CircleAvatar(
-              radius: 40,
-              backgroundColor: Color(0xFF00BCD4),
-              child: Icon(phicons.PhosphorIconsRegular.briefcase, size: 40, color: Colors.white),
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: const Color(0xFF00BCD4),
+                    backgroundImage: _companyLogoUrl != null && _companyLogoUrl!.isNotEmpty
+                        ? NetworkImage(_companyLogoUrl!)
+                        : null,
+                    child: _companyLogoUrl == null || _companyLogoUrl!.isEmpty
+                        ? const Icon(phicons.PhosphorIconsRegular.briefcase, size: 40, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _pickCompanyLogo,
+                    icon: const Icon(Icons.upload, size: 18, color: Color(0xFF00BCD4)),
+                    label: Text(
+                      _companyLogoUrl != null && _companyLogoUrl!.isNotEmpty
+                          ? 'Changer le logo'
+                          : 'Uploader le logo',
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             _settingsField(_nameController, 'Nom de l\'entreprise', phicons.PhosphorIconsRegular.briefcase),
@@ -2273,68 +2483,146 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Widget _buildNavigationDrawer() {
+    final companyName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'Entreprise';
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF00BCD4), Color(0xFF4CAF50)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    backgroundImage: _companyLogoUrl != null && _companyLogoUrl!.isNotEmpty
+                        ? NetworkImage(_companyLogoUrl!)
+                        : null,
+                    child: _companyLogoUrl == null || _companyLogoUrl!.isEmpty
+                        ? const Icon(phicons.PhosphorIconsRegular.briefcase,
+                            size: 30, color: Color(0xFF00BCD4))
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    companyName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.business, color: Color(0xFF00BCD4)),
+              title: const Text('Profil'),
+              subtitle: const Text('Logo et nom de l\'entreprise'),
+              onTap: () {
+                Navigator.pop(context);
+                _openProfileSheet();
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Déconnexion'),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmLogout();
+              },
+            ),
+            const Spacer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openProfileSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.9,
+          child: _buildSettingsTab(),
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: const Text('Espace entreprise'),
+        leading: IconButton(
+          tooltip: 'Menu',
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: _showSearchBar
+            ? TextField(
+                autofocus: true,
+                onChanged: (value) => setState(() => _searchQuery = value),
+                style: const TextStyle(color: Colors.black87),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher une offre...',
+                  hintStyle: const TextStyle(color: Colors.black54),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              )
+            : const Text('Espace entreprise'),
         backgroundColor: const Color(0xFF00BCD4),
         foregroundColor: Colors.white,
         actions: [
           _buildNotificationButton(),
           IconButton(
-            tooltip: 'Déconnexion',
+            tooltip: 'Recherche',
+            icon: Icon(_showSearchBar ? Icons.close : Icons.search),
             onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Déconnexion'),
-                  content:
-                      const Text('Voulez-vous vraiment vous déconnecter ?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Non'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _logout();
-                      },
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Oui'),
-                    ),
-                  ],
-                ),
-              );
+              setState(() {
+                _showSearchBar = !_showSearchBar;
+                if (!_showSearchBar) _searchQuery = '';
+              });
             },
-            icon: const Icon(phicons.PhosphorIconsRegular.signOut),
           ),
         ],
       ),
+      drawer: _buildNavigationDrawer(),
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          _buildUsersTab(),
           _buildOffersTab(),
           _buildDemandsView(),
           _buildMessagesView(),
-          _buildSolicitationsTab(),
-          _buildApplicationsView(),
         ],
       ),
-      floatingActionButton: _currentIndex == 1 && !_showOfferForm
+      floatingActionButton: _currentIndex == 0 && !_showOfferForm
           ? FloatingActionButton(
               backgroundColor: const Color(0xFF00BCD4),
               foregroundColor: Colors.white,
@@ -2351,10 +2639,6 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         unselectedItemColor: Colors.black,
         onTap: (index) => setState(() => _currentIndex = index),
         items: [
-          BottomNavigationBarItem(
-            icon: Icon(phicons.PhosphorIconsRegular.users),
-            label: 'Utilisateurs',
-          ),
           BottomNavigationBarItem(
             icon: Icon(phicons.PhosphorIconsRegular.briefcase),
             label: 'Offres',
@@ -2393,10 +2677,6 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
               ],
             ),
             label: 'Messagerie',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(phicons.PhosphorIconsRegular.envelopeOpen),
-            label: 'Candidatures',
           ),
         ],
       ),
