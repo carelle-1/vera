@@ -116,7 +116,7 @@ class PendingCompanyScreen extends StatelessWidget {
               Icon(Icons.hourglass_empty, size: 80, color: Colors.orange),
               const SizedBox(height: 24),
               const Text(
-                'Compte en attente de validation',
+                'Compte en attente de validation en 48h',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),

@@ -1,4 +1,5 @@
 ﻿import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -10,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart' as phicons;
+import 'package:path_provider/path_provider.dart';
 import '../auth_service.dart';
 import 'chat_screen.dart';
 
@@ -496,7 +498,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     _offerFormKey.currentState?.reset();
     setState(() {
       _editingOfferId = null;
-      _logoUrl = null;
+      _logoUrl = _companyLogoUrl;
       _contractType = null;
       _expiryDate = null;
     });
@@ -819,7 +821,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                     icon: const Icon(phicons.PhosphorIconsRegular.uploadSimple),
                     label: Text(
                       _logoUrl != null && _logoUrl!.isNotEmpty
-                          ? 'Logo uploadé'
+                          ? 'Changer le logo'
                           : 'Uploader le logo',
                     ),
                   ),
@@ -1940,12 +1942,14 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
 
       final fcmToken = userData['fcmToken'] as String?;
       if (fcmToken != null && fcmToken.isNotEmpty) {
-        await _sendPushNotification(
+        _sendPushNotification(
           fcmToken,
           'CV consulté',
           'Votre CV a été consulté par une entreprise.',
-        );
+        ).catchError((_) {});
       }
+
+      final savedBytes = await pdf.save();
 
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -1959,7 +1963,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
               children: [
                 Expanded(
                   child: PdfPreview(
-                    build: (PdfPageFormat format) => pdf.save(),
+                    build: (_) => savedBytes,
                   ),
                 ),
                 Container(
@@ -1967,23 +1971,37 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final bytes = await pdf.save();
-                            Printing.sharePdf(
-                              bytes: bytes,
-                              filename: 'cv_${name.replaceAll(' ', '_').toLowerCase()}.pdf',
-                            );
-                          },
-                          icon: const Icon(phicons.PhosphorIconsRegular.shareNetwork),
-                          label: const Text('Partager PDF'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00BCD4),
-                            foregroundColor: Colors.white,
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final dir = await getExternalStorageDirectory() ??
+                                    await getApplicationDocumentsDirectory();
+                                final file = File(
+                                  '${dir.path}/cv_${name.replaceAll(' ', '_').toLowerCase()}.pdf',
+                                );
+                                await file.writeAsBytes(savedBytes);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('CV téléchargé: ${file.path}')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Erreur: ${e.toString()}')),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.download),
+                            label: const Text('Télécharger le CV'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00BCD4),
+                              foregroundColor: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
@@ -2253,6 +2271,78 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
+  Future<void> _acceptApplicationWithInterview(DocumentSnapshot app) async {
+    final appData = app.data() as Map<String, dynamic>;
+    final userId = appData['userId'] as String?;
+    if (userId == null) return;
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (pickedDate == null) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (pickedTime == null) return;
+
+    final interviewDate = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    setState(() => _isLoading = true);
+    try {
+      final companyName = _nameController.text.trim().isNotEmpty
+          ? _nameController.text.trim()
+          : 'Entreprise';
+
+      await firestore.collection('applications').doc(app.id).update({
+        'status': 'accepted',
+        'interviewDate': interviewDate.toIso8601String(),
+        'interviewTime':
+            '${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}',
+        'interviewDateTime': Timestamp.fromDate(interviewDate),
+        'companyName': companyName,
+      });
+
+      final day =
+          '${interviewDate.day.toString().padLeft(2, '0')}/${interviewDate.month.toString().padLeft(2, '0')}/${interviewDate.year}';
+      final hour =
+          '${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}';
+
+      await firestore.collection('jobseeker_notifications').add({
+        'userId': userId,
+        'title': 'Entretien programmé',
+        'body':
+            'L\'entreprise $companyName a un entretien avec vous le $day à $hour.',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Candidature acceptée - entretien programmé')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildDemandsView() {
     if (userSession.userId == null) {
       return const Center(child: Text('Non connecté'));
@@ -2312,7 +2402,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                           ),
                         )
                       else
-                        ...applications.map((app) {
+                                                ...applications.map((app) {
                           final appData = app.data() as Map<String, dynamic>;
                           final status = (appData['status'] ?? 'pending').toString();
                           final userName = appData['userName'] ?? 'Candidat';
@@ -2335,26 +2425,15 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                   onPressed: userId != null
                                       ? () => _generateCVForJobseeker(userId)
                                       : null,
-                                   icon: const Icon(phicons.PhosphorIconsRegular.filePdf, color: Color(0xFF00BCD4)),
+                                  icon: const Icon(phicons.PhosphorIconsRegular.filePdf, color: Color(0xFF00BCD4)),
                                   tooltip: 'Voir CV',
                                 ),
-                                if (status != 'accepted' && status != 'rejected')
+                                if (status != 'accepted' && status != 'rejected') ...[
                                   IconButton(
-                                    onPressed: () async {
-                                      await firestore
-                                          .collection('applications')
-                                          .doc(applicationId)
-                                          .update({'status': 'accepted'});
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Candidature acceptée')),
-                                        );
-                                      }
-                                    },
-                                     icon: const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green),
+                                    onPressed: () => _acceptApplicationWithInterview(app),
+                                    icon: const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green),
                                     tooltip: 'Accepter',
                                   ),
-                                if (status != 'rejected')
                                   IconButton(
                                     onPressed: () async {
                                       await firestore
@@ -2370,6 +2449,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                                     icon: const Icon(phicons.PhosphorIconsRegular.xCircle, color: Colors.red),
                                     tooltip: 'Refuser',
                                   ),
+                                ],
                                 if (status == 'accepted')
                                   const Icon(phicons.PhosphorIconsRegular.checkCircle, color: Colors.green, size: 20),
                                 if (status == 'rejected')
@@ -2596,7 +2676,11 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               )
-            : const Text('Espace entreprise'),
+            : Text(
+                _nameController.text.trim().isNotEmpty
+                    ? _nameController.text.trim()
+                    : 'Espace entreprise',
+              ),
         backgroundColor: const Color(0xFF00BCD4),
         foregroundColor: Colors.white,
         actions: [
