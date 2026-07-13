@@ -199,7 +199,7 @@ class _JobseekerHomeScreenState extends State<JobseekerHomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
           BottomNavigationBarItem(icon: Icon(Icons.send), label: 'Candidatures'),
           BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messagerie'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );

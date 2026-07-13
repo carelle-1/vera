@@ -163,6 +163,63 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     } catch (e) {}
   }
 
+  Future<void> _loadProfileData() async {
+    if (userSession.userId == null) return;
+    try {
+      final doc = await firestore
+          .collection('jobseekers')
+          .doc(userSession.userId)
+          .get();
+      if (!doc.exists || doc.data() == null) return;
+      final data = doc.data()!;
+      if (mounted) {
+        setState(() {
+          _firstNameController.text = (data['firstName'] ?? '').toString();
+          _lastNameController.text = (data['lastName'] ?? '').toString();
+          _emailController.text = (data['email'] ?? '').toString();
+          _phoneController.text = (data['phone'] ?? '').toString();
+          _countryController.text = (data['country'] ?? '').toString();
+          _cityController.text = (data['city'] ?? '').toString();
+          _selectedMaritalStatus = data['maritalStatus'] as String?;
+          _childrenCountController.text = (data['childrenCount'] ?? '').toString();
+          if (data['languages'] is List) {
+            _languages
+              ..clear()
+              ..addAll(List<Map<String, dynamic>>.from(data['languages'] as List));
+          }
+          if (data['hobbies'] is List) {
+            _hobbies
+              ..clear()
+              ..addAll(List<Map<String, dynamic>>.from(data['hobbies'] as List));
+          }
+          _isCurrentlyWorking = data['isCurrentlyWorking'] == true;
+          _currentPositionController.text = (data['currentPosition'] ?? '').toString();
+          _currentSalaryController.text = (data['currentSalary'] ?? '').toString();
+          _selectedContractType = data['contractType'] as String?;
+          _experienceMonthsController.text = (data['experienceMonths'] ?? '').toString();
+          _experienceYearsController.text = (data['experienceYears'] ?? '').toString();
+          _availabilityController.text = (data['availability'] ?? '').toString();
+          _desiredSalaryController.text = (data['desiredSalary'] ?? '').toString();
+          _selectedWorkMode = data['workMode'] as String?;
+          _aboutController.text = (data['about'] ?? '').toString();
+          _careerObjectiveController.text = (data['careerObjective'] ?? '').toString();
+          if (data['diplomas'] is List) {
+            _diplomas
+              ..clear()
+              ..addAll(List<Map<String, dynamic>>.from(data['diplomas'] as List));
+          }
+          if (data['favoriteOfferIds'] is List) {
+            _favoriteOfferIds
+              ..clear()
+              ..addAll(List<String>.from(data['favoriteOfferIds'] as List));
+          }
+          _autoApplyEnabled = data['autoApply'] == true;
+          _profilePhotoUrl = data['profilePhotoUrl'] as String?;
+        });
+      }
+    } catch (e) {}
+  }
+
   Future<void> _initNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings();
@@ -258,265 +315,203 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Impossible de postuler à cette offre')),
           );
-          setState(() => _isLoading = false);
         }
         return;
       }
 
-      final idToken = await auth.currentUser?.getIdToken();
-      if (idToken == null || idToken.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Utilisateur non authentifié')),
-          );
-          setState(() => _isLoading = false);
-        }
-        return;
-      }
-
-      // Sauvegarder la candidature dans Firestore
-      final applicationRef = firestore
-          .collection('applications')
-          .doc('${userSession.userId}_$offerId${DateTime.now().millisecondsSinceEpoch}');
-      await applicationRef.set({
+      await firestore.collection('applications').add({
         'userId': userSession.userId,
         'offerId': offerId,
         'offerTitle': offerTitle,
-        'userName': '${_firstNameController.text} ${_lastNameController.text}',
-        'userEmail': _emailController.text,
         'contactEmail': contactEmail,
-        'status': 'pending',
+        'automatic': automatic,
+        'status': 'sent',
         'appliedAt': FieldValue.serverTimestamp(),
       });
+      _appliedOfferIds.add(offerId);
 
-      setState(() => _appliedOfferIds.add(offerId));
+      await _saveUserNotification(
+        title: 'Candidature envoyée',
+        body: 'Vous avez postulé à l\'offre "$offerTitle"',
+        offerId: offerId,
+        offerTitle: offerTitle,
+        automatic: automatic,
+      );
 
-      final response = await http
-          .post(
-            Uri.parse('http://192.168.170.89/VERA/apply.php'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'offerId': offerId,
-              'userId': userSession.userId,
-              'idToken': idToken,
-              'firstName': _firstNameController.text,
-              'lastName': _lastNameController.text,
-              'email': _emailController.text,
-              'phone': _phoneController.text,
-              'city': _cityController.text,
-              'country': _countryController.text,
-              'about': _aboutController.text,
-              'desiredSalary': _desiredSalaryController.text,
-              'workMode': _selectedWorkMode ?? '',
-              'experienceYears': _experienceYearsController.text,
-              'experienceMonths': _experienceMonthsController.text,
-              'diplomas': _diplomas,
-              'title': offerTitle,
-              'contactEmail': contactEmail,
-            }),
-          )
-          .timeout(const Duration(seconds: 90));
-
-      if (response.statusCode != 200) {
-        if (mounted) {
-          String? responsePreview;
-          try {
-            responsePreview = response.body;
-          } catch (_) {}
-          showDialog(
-            context: context,
-            builder: (dialogContext) {
-              final message = responsePreview != null && responsePreview.isNotEmpty
-                  ? responsePreview
-                  : 'Erreur serveur (${response.statusCode})';
-              return AlertDialog(
-                title: const Text("Erreur serveur"),
-                content: Text(message),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text('Fermer'),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-        return;
-      }
-
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        await applicationRef.update({'status': 'sent'});
-        if (mounted) {
-          final notificationTitle =
-              automatic ? 'Candidature automatique envoyee' : 'Candidature envoyee';
-          final notificationBody = automatic
-              ? 'Vous avez postule automatiquement a $offerTitle'
-              : 'Vous avez postule a $offerTitle';
-          try {
-            await _saveUserNotification(
-              title: notificationTitle,
-              body: notificationBody,
-              offerId: offerId,
-              offerTitle: offerTitle,
-              automatic: automatic,
-            );
-          } catch (e) {}
-          await _showNotification(
-            notificationTitle,
-            notificationBody,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['message'] ?? 'Candidature envoyée')),
-          );
-          if (offer == null) {
-            setState(() => _selectedOffer = null);
-          }
-          if (dialogContext != null && Navigator.canPop(dialogContext)) {
-            Navigator.pop(dialogContext);
-          }
-        }
-      } else {
-        if (mounted) {
-          final errorMessage = (data['message'] ?? 'Erreur lors de la candidature').toString();
-          final errorDetail = (data['error_detail'] ?? data['php_error'] ?? '').toString();
-          final extra = (errorDetail.isEmpty ? '' : '\n\nDétail : $errorDetail');
-          showDialog(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text("Erreur lors de la candidature"),
-              content: Text(errorMessage + extra),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Fermer'),
-                ),
-              ],
-            ),
-          );
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Candidature envoyée pour "$offerTitle"')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        final errorMsg = e.toString();
-        final isTimeout = errorMsg.contains('TimeoutException') || errorMsg.contains('connection timed out');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isTimeout ? 'Délai dépassé : vérifie le serveur apply.php' : 'Erreur: $errorMsg')),
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
         );
       }
     } finally {
-      if (automatic) {
-        _pendingAutoApplyOfferIds.remove(offerId);
-      }
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _loadProfileData() async {
+  Future<void> _openCompaniesDialog() async {
     if (userSession.userId == null) return;
-    try {
-      final doc = await firestore
-          .collection('jobseekers')
-          .doc(userSession.userId)
-          .get();
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data() as Map<String, dynamic>;
-        setState(() {
-          _firstNameController.text = data['firstName'] ?? '';
-          _lastNameController.text = data['lastName'] ?? '';
-          _emailController.text = data['email'] ?? '';
-          _phoneController.text = data['phone'] ?? '';
-          _countryController.text = data['country'] ?? '';
-          _cityController.text = data['city'] ?? '';
-          _selectedMaritalStatus = data['maritalStatus'];
-          _childrenCountController.text = data['childrenCount'] ?? '';
-          if (data['languages'] != null) {
-            _languages.clear();
-            _languages.addAll(
-              List<Map<String, dynamic>>.from(
-                (data['languages'] as List).map(
-                  (e) => Map<String, dynamic>.from(e),
-                ),
-              ),
-            );
-          }
-          if (data['hobbies'] != null) {
-            _hobbies.clear();
-            _hobbies.addAll(
-              List<Map<String, dynamic>>.from(
-                (data['hobbies'] as List).map(
-                  (e) => Map<String, dynamic>.from(e),
-                ),
-              ),
-            );
-          }
-          _currentSalaryController.text = data['currentSalary'] ?? '';
-          _experienceMonthsController.text = data['experienceMonths'] ?? '';
-          _experienceYearsController.text = data['experienceYears'] ?? '';
-          _isCurrentlyWorking = data['isCurrentlyWorking'] ?? false;
-          _currentPositionController.text = data['currentPosition'] ?? '';
-          _selectedContractType = data['contractType'];
-          _availabilityController.text = data['availability'] ?? '';
-          _desiredSalaryController.text = data['desiredSalary'] ?? '';
-          _selectedWorkMode = data['workMode'];
-          _aboutController.text = data['about'] ?? '';
-          _careerObjectiveController.text = data['careerObjective'] ?? '';
-          if (data['diplomas'] != null) {
-            _diplomas.clear();
-            _diplomas.addAll(
-              List<Map<String, dynamic>>.from(
-                (data['diplomas'] as List).map(
-                  (e) => Map<String, dynamic>.from(e),
-                ),
-              ),
-            );
-          }
-          if (data['favoriteOfferIds'] != null) {
-            _favoriteOfferIds.clear();
-            _favoriteOfferIds.addAll(
-              List<String>.from(data['favoriteOfferIds'] as List),
-            );
-          }
-          _profilePhotoUrl = data['profilePhotoUrl'];
-          _autoApplyEnabled = data['autoApply'] ?? false;
-        });
-        if (_careerObjectiveController.text.isEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _showCareerObjectiveReminder();
-            }
-          });
-        }
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: UserRole.company.name)
+        .get();
+
+    final companies = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final name = (data['name'] ?? '').toString().trim();
+      return name.isNotEmpty;
+    }).toList();
+
+    if (companies.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune entreprise disponible')),
+        );
       }
-    } catch (e) {}
+      return;
+    }
+
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Entreprises'),
+          content: SizedBox(
+            height: 300,
+            width: 300,
+            child: ListView.separated(
+              itemCount: companies.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final doc = companies[index];
+                final data = doc.data();
+                final name = (data['name'] ?? 'Entreprise').toString();
+                final email = (data['email'] ?? '').toString();
+                return ListTile(
+                  title: Text(name),
+                  subtitle: Text(email.isEmpty ? 'Email non renseigné' : email),
+                  onTap: () async {
+                    Navigator.pop(dialogContext);
+                    await _startConversation(
+                      otherUserId: doc.id,
+                      otherUserName: name,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fermer'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
-  void _showCareerObjectiveReminder() {
+  Future<void> _openAdminsDialog() async {
+    if (userSession.userId == null) return;
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: UserRole.admin.name)
+        .get();
+
+    final admins = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final name = (data['name'] ?? '').toString().trim();
+      return name.isNotEmpty;
+    }).toList();
+
+    if (admins.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucun administrateur disponible')),
+        );
+      }
+      return;
+    }
+
     if (!mounted) return;
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Objectif de carrière'),
-        content: const Text(
-          'Votre objectif de carrière n\'est pas renseigné. '
-          'Complétez-le pour profiter de recommandations personnalisées.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Plus tard'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Administrateurs'),
+          content: SizedBox(
+            height: 300,
+            width: 300,
+            child: ListView.separated(
+              itemCount: admins.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final doc = admins[index];
+                final data = doc.data();
+                final name = (data['name'] ?? 'Admin').toString();
+                final email = (data['email'] ?? '').toString();
+                return ListTile(
+                  title: Text(name),
+                  subtitle: Text(email.isEmpty ? 'Email non renseigné' : email),
+                  onTap: () async {
+                    Navigator.pop(dialogContext);
+                    await _startConversation(
+                      otherUserId: doc.id,
+                      otherUserName: name,
+                    );
+                  },
+                );
+              },
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _openCareerObjectiveSheet();
-            },
-            child: const Text('Renseigner'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fermer'),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _startConversation({
+    required String otherUserId,
+    required String otherUserName,
+  }) async {
+    if (userSession.userId == null) return;
+    final participants = [userSession.userId, otherUserId]..sort();
+    final conversationId = participants.join('_');
+
+    await firestore.collection('messages').doc(conversationId).set({
+      'participants': participants,
+      'lastMessage': 'Nouvelle conversation',
+      'senderName': otherUserName,
+      'createdAt': FieldValue.serverTimestamp(),
+      'unreadCount_${userSession.userId}': 0,
+      'unreadCount_$otherUserId': 1,
+    }, SetOptions(merge: true));
+
+    if (mounted) {
+      setState(() => _currentIndex = 3);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            conversationId: conversationId,
+            otherUserId: otherUserId,
+            otherUserName: otherUserName,
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -2765,7 +2760,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               return ListView.separated(
                 padding: const EdgeInsets.only(top: 8, bottom: 80),
                 itemCount: messages.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+                separatorBuilder: (_, __) => const SizedBox.shrink(),
                 itemBuilder: (context, index) {
                   final data = messages[index].data() as Map<String, dynamic>;
                   final conversation = messages[index];
@@ -2896,24 +2891,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                       ),
                       const SizedBox(height: 12),
                       _buildSpeedDialItem(
-                        icon: phicons.PhosphorIconsRegular.users,
-                        label: 'Nouveau groupe',
+                        icon: phicons.PhosphorIconsRegular.briefcase,
+                        label: 'Entreprise',
                         onTap: () {
                           setState(() => _showMessageActions = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Fonctionnalité de groupe à venir')),
-                          );
+                          _openCompaniesDialog();
                         },
                       ),
                       const SizedBox(height: 12),
                       _buildSpeedDialItem(
-                        icon: phicons.PhosphorIconsRegular.chatCircleDots,
-                        label: 'Messages envoyés',
+                        icon: phicons.PhosphorIconsRegular.userCircleGear,
+                        label: 'Admin',
                         onTap: () {
                           setState(() => _showMessageActions = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Fonctionnalité à venir')),
-                          );
+                          _openAdminsDialog();
                         },
                       ),
                       const SizedBox(height: 16),
