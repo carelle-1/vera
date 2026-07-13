@@ -92,6 +92,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   bool _showSearchBarHome = false;
   Map<String, dynamic>? _selectedOffer;
   bool _autoApplyEnabled = false;
+  String? _cvSource;
+  String? _uploadedCvUrl;
+  bool _isUploadingCv = false;
   bool _showMessageActions = false;
   final Set<String> _appliedOfferIds = {};
   final Set<String> _pendingAutoApplyOfferIds = {};
@@ -214,6 +217,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               ..addAll(List<String>.from(data['favoriteOfferIds'] as List));
           }
           _autoApplyEnabled = data['autoApply'] == true;
+          _cvSource = data['cvSource'] as String?;
+          _uploadedCvUrl = data['cvUrl'] as String?;
           _profilePhotoUrl = data['profilePhotoUrl'] as String?;
         });
       }
@@ -326,6 +331,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         'contactEmail': contactEmail,
         'automatic': automatic,
         'status': 'sent',
+        'cvSource': _cvSource,
+        'cvUrl': _uploadedCvUrl,
         'appliedAt': FieldValue.serverTimestamp(),
       });
       _appliedOfferIds.add(offerId);
@@ -351,6 +358,157 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _setAutoApply(bool value) async {
+    setState(() {
+      _autoApplyEnabled = value;
+      _hasQueuedAutoApps = false;
+    });
+    try {
+      await firestore
+          .collection('jobseekers')
+          .doc(userSession.userId ?? '')
+          .set({'autoApply': value}, SetOptions(merge: true));
+    } catch (_) {}
+    if (value) {
+      _promptCvChoice();
+    }
+  }
+
+  Future<void> _promptCvChoice() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Source du CV'),
+        content: const Text(
+          'Voulez-vous postuler avec le CV généré par le système '
+          'ou téléverser votre propre CV ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _useSystemCv();
+            },
+            child: const Text('CV du système'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _uploadOwnCv();
+            },
+            child: const Text('Téléverser mon CV'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _useSystemCv() async {
+    setState(() => _isUploadingCv = true);
+    try {
+      final pdf = await _buildCvPdf();
+      final bytes = await pdf.save();
+      final safeName =
+          '${_firstNameController.text}_${_lastNameController.text}'
+              .replaceAll(' ', '_')
+              .toLowerCase();
+      final file = File('${Directory.systemTemp.path}/cv_$safeName.pdf');
+      await file.writeAsBytes(bytes);
+      final url = await userSession.uploadDocumentToCloudinary(file.path);
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Échec de l\'enregistrement du CV du système.')),
+          );
+        }
+        return;
+      }
+      _uploadedCvUrl = url;
+      _cvSource = 'system';
+      await firestore
+          .collection('jobseekers')
+          .doc(userSession.userId ?? '')
+          .set({'cvSource': 'system', 'cvUrl': url}, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CV du système enregistré.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingCv = false);
+    }
+  }
+
+  Future<void> _uploadOwnCv() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.single.path == null) return;
+      setState(() => _isUploadingCv = true);
+      final url = await userSession.uploadDocumentToCloudinary(result.files.single.path!);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Échec du téléversement du CV.')),
+          );
+        }
+        return;
+      }
+      _uploadedCvUrl = url;
+      _cvSource = 'uploaded';
+      await firestore
+          .collection('jobseekers')
+          .doc(userSession.userId ?? '')
+          .set({'cvSource': 'uploaded', 'cvUrl': url}, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CV téléversé avec succès.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingCv = false);
+    }
+  }
+
+  Future<void> _openCv() async {
+    if (_uploadedCvUrl == null || _uploadedCvUrl!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucun CV disponible.')),
+        );
+      }
+      return;
+    }
+    final uri = Uri.parse(_uploadedCvUrl!);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d\'ouvrir le CV.')),
+        );
+      }
     }
   }
 
@@ -665,134 +823,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     setState(() => _isLoading = true);
     try {
       final name = '${_firstNameController.text} ${_lastNameController.text}'.trim();
-      final email = _emailController.text;
-      final phone = _phoneController.text;
-      final city = _cityController.text;
-      final country = _countryController.text;
-      final maritalStatus = _selectedMaritalStatus ?? 'Non renseigné';
-      final childrenCount = _childrenCountController.text.isEmpty ? '0' : _childrenCountController.text;
-      final experienceYears = _experienceYearsController.text;
-      final experienceMonths = _experienceMonthsController.text;
-      final currentPosition = _currentPositionController.text;
-      final currentSalary = _currentSalaryController.text;
-      final contractType = _selectedContractType ?? 'Non renseigné';
-      final availability = _availabilityController.text;
-      final desiredSalary = _desiredSalaryController.text;
-      final workMode = _selectedWorkMode ?? 'Non renseigné';
-      final about = _aboutController.text;
-      final languages = _languages.map((l) => l['name'] ?? '').join(', ');
-      final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
-      final diplomas = _diplomas.map((d) {
-        final name = d['name'] ?? '';
-        final date = d['date'] ?? '';
-        final school = d['school'] ?? '';
-        final parts = [name];
-        if (date.isNotEmpty) parts.add('($date)');
-        if (school.isNotEmpty) parts.add('- $school');
-        return parts.join(' ');
-      }).join('\n');
 
-      final pdf = pw.Document();
-
-      pw.MemoryImage? profileImage;
-      if (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty) {
-        try {
-          final response = await http.get(Uri.parse(_profilePhotoUrl!));
-          if (response.statusCode == 200) {
-            profileImage = pw.MemoryImage(response.bodyBytes);
-          }
-        } catch (e) {}
-      }
-
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(32),
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    if (profileImage != null)
-                      pw.Container(
-                        width: 90,
-                        height: 90,
-                        decoration: const pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                        ),
-                        child: pw.ClipOval(
-                          child: pw.Image(profileImage, width: 90, height: 90, fit: pw.BoxFit.cover),
-                        ),
-                      )
-                    else
-                      pw.Container(
-                        width: 90,
-                        height: 90,
-                        decoration: const pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                          color: PdfColor(0.9, 0.9, 0.9),
-                        ),
-                        child: pw.Center(
-                          child: pw.Text('?', style: pw.TextStyle(fontSize: 32, color: PdfColor(0.5, 0.5, 0.5))),
-                        ),
-                      ),
-                    pw.SizedBox(width: 24),
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            name.isEmpty ? 'Candidat' : name,
-                            style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: PdfColor(0.13, 0.13, 0.13)),
-                          ),
-                          if (email.isNotEmpty) pw.Text(email, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
-                          if (phone.isNotEmpty) pw.Text(phone, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
-                          if (city.isNotEmpty || country.isNotEmpty)
-                            pw.Text('$city, $country', style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                pw.SizedBox(height: 24),
-                pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 2),
-                pw.SizedBox(height: 16),
-                _buildPdfSection(title: 'INFORMATIONS PERSONNELLES', children: [
-                  _buildPdfRow('Situation familiale', maritalStatus),
-                  _buildPdfRow('Enfants', childrenCount),
-                ]),
-                _buildPdfSection(title: 'EXPÉRIENCE PROFESSIONNELLE', children: [
-                  if (currentPosition.isNotEmpty) _buildPdfRow('Poste actuel', currentPosition),
-                  _buildPdfRow('Expérience', '$experienceYears ans, $experienceMonths mois'),
-                  if (currentSalary.isNotEmpty) _buildPdfRow('Salaire actuel', currentSalary),
-                  _buildPdfRow('Type de contrat', contractType),
-                  if (availability.isNotEmpty) _buildPdfRow('Disponibilité', availability),
-                ]),
-                _buildPdfSection(title: 'FORMATIONS & DIPLÔMES', children: [
-                  if (diplomas.isNotEmpty)
-                    pw.Text(diplomas, style: pw.TextStyle(fontSize: 11))
-                  else
-                    pw.Text('Aucun diplôme renseigné', style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
-                ]),
-                _buildPdfSection(title: 'LANGUES & LOISIRS', children: [
-                  if (languages.isNotEmpty) _buildPdfRow('Langues', languages),
-                  if (hobbies.isNotEmpty) _buildPdfRow('Loisirs', hobbies),
-                ]),
-                _buildPdfSection(title: 'PRÉFÉRENCES', children: [
-                  if (desiredSalary.isNotEmpty) _buildPdfRow('Salaire souhaité', desiredSalary),
-                  _buildPdfRow('Mode de travail', workMode),
-                ]),
-                if (about.isNotEmpty)
-                  _buildPdfSection(title: 'À PROPOS', children: [
-                    pw.Text(about, style: pw.TextStyle(fontSize: 11)),
-                  ]),
-              ],
-            );
-          },
-        ),
-      );
+      final pdf = await _buildCvPdf();
 
       if (mounted) {
         showDialog(
@@ -835,6 +867,140 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<pw.Document> _buildCvPdf() async {
+    final name = '${_firstNameController.text} ${_lastNameController.text}'.trim();
+    final email = _emailController.text;
+    final phone = _phoneController.text;
+    final city = _cityController.text;
+    final country = _countryController.text;
+    final maritalStatus = _selectedMaritalStatus ?? 'Non renseigné';
+    final childrenCount = _childrenCountController.text.isEmpty ? '0' : _childrenCountController.text;
+    final experienceYears = _experienceYearsController.text;
+    final experienceMonths = _experienceMonthsController.text;
+    final currentPosition = _currentPositionController.text;
+    final currentSalary = _currentSalaryController.text;
+    final contractType = _selectedContractType ?? 'Non renseigné';
+    final availability = _availabilityController.text;
+    final desiredSalary = _desiredSalaryController.text;
+    final workMode = _selectedWorkMode ?? 'Non renseigné';
+    final about = _aboutController.text;
+    final languages = _languages.map((l) => l['name'] ?? '').join(', ');
+    final hobbies = _hobbies.map((h) => h['name'] ?? '').join(', ');
+    final diplomas = _diplomas.map((d) {
+      final name = d['name'] ?? '';
+      final date = d['date'] ?? '';
+      final school = d['school'] ?? '';
+      final parts = [name];
+      if (date.isNotEmpty) parts.add('($date)');
+      if (school.isNotEmpty) parts.add('- $school');
+      return parts.join(' ');
+    }).join('\n');
+
+    final pdf = pw.Document();
+
+    pw.MemoryImage? profileImage;
+    if (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty) {
+      try {
+        final response = await http.get(Uri.parse(_profilePhotoUrl!));
+        if (response.statusCode == 200) {
+          profileImage = pw.MemoryImage(response.bodyBytes);
+        }
+      } catch (e) {}
+    }
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  if (profileImage != null)
+                    pw.Container(
+                      width: 90,
+                      height: 90,
+                      decoration: const pw.BoxDecoration(
+                        shape: pw.BoxShape.circle,
+                      ),
+                      child: pw.ClipOval(
+                        child: pw.Image(profileImage, width: 90, height: 90, fit: pw.BoxFit.cover),
+                      ),
+                    )
+                  else
+                    pw.Container(
+                      width: 90,
+                      height: 90,
+                      decoration: const pw.BoxDecoration(
+                        shape: pw.BoxShape.circle,
+                        color: PdfColor(0.9, 0.9, 0.9),
+                      ),
+                      child: pw.Center(
+                        child: pw.Text('?', style: pw.TextStyle(fontSize: 32, color: PdfColor(0.5, 0.5, 0.5))),
+                      ),
+                    ),
+                  pw.SizedBox(width: 24),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          name.isEmpty ? 'Candidat' : name,
+                          style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: PdfColor(0.13, 0.13, 0.13)),
+                        ),
+                        if (email.isNotEmpty) pw.Text(email, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                        if (phone.isNotEmpty) pw.Text(phone, style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                        if (city.isNotEmpty || country.isNotEmpty)
+                          pw.Text('$city, $country', style: pw.TextStyle(fontSize: 12, color: PdfColor(0.46, 0.46, 0.46))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 24),
+              pw.Divider(color: PdfColor(0.3, 0.69, 0.31), thickness: 2),
+              pw.SizedBox(height: 16),
+              _buildPdfSection(title: 'INFORMATIONS PERSONNELLES', children: [
+                _buildPdfRow('Situation familiale', maritalStatus),
+                _buildPdfRow('Enfants', childrenCount),
+              ]),
+              _buildPdfSection(title: 'EXPÉRIENCE PROFESSIONNELLE', children: [
+                if (currentPosition.isNotEmpty) _buildPdfRow('Poste actuel', currentPosition),
+                _buildPdfRow('Expérience', '$experienceYears ans, $experienceMonths mois'),
+                if (currentSalary.isNotEmpty) _buildPdfRow('Salaire actuel', currentSalary),
+                _buildPdfRow('Type de contrat', contractType),
+                if (availability.isNotEmpty) _buildPdfRow('Disponibilité', availability),
+              ]),
+              _buildPdfSection(title: 'FORMATIONS & DIPLÔMES', children: [
+                if (diplomas.isNotEmpty)
+                  pw.Text(diplomas, style: pw.TextStyle(fontSize: 11))
+                else
+                  pw.Text('Aucun diplôme renseigné', style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+              ]),
+              _buildPdfSection(title: 'LANGUES & LOISIRS', children: [
+                if (languages.isNotEmpty) _buildPdfRow('Langues', languages),
+                if (hobbies.isNotEmpty) _buildPdfRow('Loisirs', hobbies),
+              ]),
+              _buildPdfSection(title: 'PRÉFÉRENCES', children: [
+                if (desiredSalary.isNotEmpty) _buildPdfRow('Salaire souhaité', desiredSalary),
+                _buildPdfRow('Mode de travail', workMode),
+              ]),
+              if (about.isNotEmpty)
+                _buildPdfSection(title: 'À PROPOS', children: [
+                  pw.Text(about, style: pw.TextStyle(fontSize: 11)),
+                ]),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf;
   }
 
   pw.Widget _buildPdfSection({required String title, required List<pw.Widget> children}) {
@@ -1762,16 +1928,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ),
         Switch(
           value: _autoApplyEnabled,
-          onChanged: (value) {
-            setState(() {
-              _autoApplyEnabled = value;
-              _hasQueuedAutoApps = false;
-            });
-            firestore
-                .collection('jobseekers')
-                .doc(userSession.userId ?? '')
-                .set({'autoApply': value}, SetOptions(merge: true));
-          },
+          onChanged: (value) => _setAutoApply(value),
           activeColor: Colors.white,
           activeTrackColor: Colors.white.withOpacity(0.3),
         ),
@@ -1930,12 +2087,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                                  SizedBox(
                                    width: 56,
                                    height: 56,
-                                   child: CircularProgressIndicator(
-                                     value: animatedValue,
-                                     strokeWidth: 4,
-                                     backgroundColor: Colors.white,
-                                     color: const Color(0xFF4CAF50),
-                                   ),
+                                    child: CircularProgressIndicator(
+                                      value: animatedValue,
+                                      strokeWidth: 4,
+                                      backgroundColor: Colors.white.withOpacity(0.3),
+                                      color: Colors.white,
+                                    ),
                                  ),
                                  Text(
                                    '${_calculateProfileCompletion()}%',
@@ -2005,6 +2162,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               onTap: () {
                 Navigator.pop(context);
                 _showAutoApplyExplanationsSheet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility, color: Color(0xFF4CAF50)),
+              title: const Text('Voir mon CV'),
+              subtitle: _uploadedCvUrl != null && _uploadedCvUrl!.isNotEmpty
+                  ? Text(_cvSource == 'uploaded' ? 'CV téléversé' : 'CV du système')
+                  : const Text('Aucun CV enregistré'),
+              onTap: () {
+                Navigator.pop(context);
+                _openCv();
               },
             ),
             const Divider(height: 1),
@@ -2143,18 +2311,29 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                         value: value,
                         onChanged: (newValue) async {
                           localAutoApply.value = newValue;
-                          setState(() => _autoApplyEnabled = newValue);
-                          _hasQueuedAutoApps = false;
-                          try {
-                            await firestore
-                                .collection('jobseekers')
-                                .doc(userSession.userId ?? '')
-                                .set({'autoApply': newValue}, SetOptions(merge: true));
-                          } catch (_) {}
+                          await _setAutoApply(newValue);
                         },
                         activeColor: Colors.white,
                         activeTrackColor: const Color(0xFF4CAF50),
                       ),
+                      if (_uploadedCvUrl != null && _uploadedCvUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _cvSource == 'uploaded' ? 'CV téléversé' : 'CV du système',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _openCv(),
+                              icon: const Icon(Icons.visibility, size: 18),
+                              label: const Text('Voir le CV'),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       const Text('Comment ça marche ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
