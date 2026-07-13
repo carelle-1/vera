@@ -315,12 +315,12 @@ Contexte:
   Color _getAvatarColor(String name) {
     int hash = name.hashCode.abs();
     final colors = [
-      const Color(0xFF00BCD4),
-      const Color(0xFF4CAF50),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFFE91E63),
-      const Color(0xFF2196F3),
+      const Color(0xFF4FC3F7),
+      const Color(0xFF81C784),
+      const Color(0xFF4DD0E1),
+      const Color(0xFFAED581),
+      const Color(0xFF4DB6AC),
+      const Color(0xFF90CAF9),
     ];
     return colors[hash % colors.length];
   }
