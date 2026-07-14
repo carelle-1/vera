@@ -19,6 +19,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isCompany = false;
   String? _documentPath;
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -159,6 +161,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Mot de passe',
                         prefixIcon: const Icon(Icons.lock, color: Colors.white70),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () {
+                            setState(() => _obscurePassword = !_obscurePassword);
+                          },
+                        ),
                         labelStyle: const TextStyle(color: Colors.white70),
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.2),
@@ -167,7 +178,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       style: const TextStyle(color: Colors.white),
                       validator: (value) => value!.length >= 6 ? null : 'Min 6 caractères',
                     ),
@@ -177,6 +188,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Confirmer mot de passe',
                         prefixIcon: const Icon(Icons.lock, color: Colors.white70),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () {
+                            setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
+                          },
+                        ),
                         labelStyle: const TextStyle(color: Colors.white70),
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.2),
@@ -185,7 +205,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      obscureText: true,
+                      obscureText: _obscureConfirmPassword,
                       style: const TextStyle(color: Colors.white),
                       validator: (value) => value == _passwordController.text ? null : 'Mots de passe différents',
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -59,6 +60,44 @@ class UserSession extends ChangeNotifier {
             'createdAt': FieldValue.serverTimestamp(),
           });
           login(UserRole.employee, uid);
+        }
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    try {
+      final googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return;
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final userCredential = await auth.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user != null) {
+        final uid = user.uid;
+        final doc = await firestore.collection('users').doc(uid).get();
+        if (!doc.exists) {
+          await firestore.collection('users').doc(uid).set({
+            'email': user.email ?? '',
+            'name': user.displayName ?? '',
+            'role': UserRole.employee.name,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          login(UserRole.employee, uid);
+        } else {
+          final data = doc.data();
+          final roleStr = data?['role'] as String?;
+          final role = UserRole.values.firstWhere(
+            (e) => e.name == roleStr,
+            orElse: () => UserRole.employee,
+          );
+          login(role, uid);
         }
       }
     } catch (e) {
