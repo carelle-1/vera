@@ -38,6 +38,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   bool _showSearchBar = false;
   String _searchQuery = '';
   String? _companyLogoUrl;
+  double _profileCompleteness = 0.0;
 
   // --- Offres ---
   final _offerFormKey = GlobalKey<FormState>();
@@ -70,6 +71,20 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   final _websiteController = TextEditingController();
   final _aboutController = TextEditingController();
   final _commentController = TextEditingController();
+  final Map<String, TextEditingController> _companyFieldControllers = {};
+  String? _selectedCompanyType;
+  String? _selectedLegalStatus;
+  String? _selectedCompanySize;
+  String? _selectedSector;
+  final List<String> _companyTypes = ['Startup', 'PME', 'Grande entreprise', 'ONG'];
+  final List<String> _legalStatuses = ['SAS', 'SARL', 'SA', 'EURL', 'Association', 'Autre'];
+  final List<String> _companySizes = ['1-10', '11-50', '51-200', '201-1000', '1000+'];
+  final List<String> _sectors = [
+    'Agriculture', 'Alimentation', 'Banque', 'BTP', 'Commerce', 'Communication',
+    'Éducation', 'Énergie', 'Finance', 'Hôtellerie', 'Industrie', 'Informatique',
+    'Juridique', 'Logistique', 'Médical', 'Médias', 'Mines', 'Numérique',
+    'Ressources humaines', 'Santé', 'Services', 'Sport', 'Tourisme', 'Transport',
+  ];
 
   // --- Utilisateurs ---
   String _userSearch = '';
@@ -77,6 +92,40 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
   @override
   void initState() {
     super.initState();
+    _companyFieldControllers.addAll({
+      'slogan': TextEditingController(),
+      'shortDescription': TextEditingController(),
+      'creationYear': TextEditingController(),
+      'sector': TextEditingController(),
+      'subSector': TextEditingController(),
+      'registrationNumber': TextEditingController(),
+      'taxId': TextEditingController(),
+      'country': TextEditingController(),
+      'region': TextEditingController(),
+      'city': TextEditingController(),
+      'district': TextEditingController(),
+      'address': TextEditingController(),
+      'postBox': TextEditingController(),
+      'gps': TextEditingController(),
+      'mapUrl': TextEditingController(),
+      'professionalEmail': TextEditingController(),
+      'whatsapp': TextEditingController(),
+      'phoneSecondary': TextEditingController(),
+      'hrContact': TextEditingController(),
+      'recruitmentEmail': TextEditingController(),
+      'openingHours': TextEditingController(),
+      'activities': TextEditingController(),
+      'products': TextEditingController(),
+      'services': TextEditingController(),
+      'expertise': TextEditingController(),
+      'technologies': TextEditingController(),
+      'mainMarkets': TextEditingController(),
+      'geographicCoverage': TextEditingController(),
+      'targetClients': TextEditingController(),
+      'projects': TextEditingController(),
+      'achievements': TextEditingController(),
+    });
+
     _notificationStream = userSession.userId != null
         ? firestore
             .collection('company_notifications')
@@ -149,6 +198,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     _websiteController.dispose();
     _aboutController.dispose();
     _commentController.dispose();
+    for (final c in _companyFieldControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -186,9 +238,90 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             _companyController.text = data['name'] ?? '';
           }
           _companyLogoUrl = data['companyLogoUrl'] as String?;
+          _companyFieldControllers['slogan']?.text = data['slogan'] ?? '';
+          _companyFieldControllers['shortDescription']?.text = data['shortDescription'] ?? '';
+          _companyFieldControllers['creationYear']?.text = data['creationYear'] ?? '';
+          _selectedCompanyType = data['companyType'] as String?;
+          _companyFieldControllers['sector']?.text = data['sector'] ?? '';
+          _selectedSector = data['sector'] as String?;
+          _companyFieldControllers['subSector']?.text = data['subSector'] ?? '';
+          _selectedLegalStatus = data['legalStatus'] as String?;
+          _companyFieldControllers['registrationNumber']?.text = data['registrationNumber'] ?? '';
+          _companyFieldControllers['taxId']?.text = data['taxId'] ?? '';
+          _companyFieldControllers['country']?.text = data['country'] ?? '';
+          _companyFieldControllers['region']?.text = data['region'] ?? '';
+          _companyFieldControllers['city']?.text = data['city'] ?? '';
+          _companyFieldControllers['district']?.text = data['district'] ?? '';
+          _companyFieldControllers['address']?.text = data['address'] ?? '';
+          _companyFieldControllers['postBox']?.text = data['postBox'] ?? '';
+          _companyFieldControllers['gps']?.text = data['gps'] ?? '';
+          _companyFieldControllers['mapUrl']?.text = data['mapUrl'] ?? '';
+          _companyFieldControllers['professionalEmail']?.text = data['professionalEmail'] ?? '';
+          _companyFieldControllers['whatsapp']?.text = data['whatsapp'] ?? '';
+          _companyFieldControllers['phoneSecondary']?.text = data['phoneSecondary'] ?? '';
+          _companyFieldControllers['hrContact']?.text = data['hrContact'] ?? '';
+          _companyFieldControllers['recruitmentEmail']?.text = data['recruitmentEmail'] ?? '';
+          _companyFieldControllers['openingHours']?.text = data['openingHours'] ?? '';
+          _companyFieldControllers['activities']?.text = data['activities'] ?? '';
+          _companyFieldControllers['products']?.text = data['products'] ?? '';
+          _companyFieldControllers['services']?.text = data['services'] ?? '';
+          _companyFieldControllers['expertise']?.text = data['expertise'] ?? '';
+          _companyFieldControllers['technologies']?.text = data['technologies'] ?? '';
+          _companyFieldControllers['mainMarkets']?.text = data['mainMarkets'] ?? '';
+          _companyFieldControllers['geographicCoverage']?.text = data['geographicCoverage'] ?? '';
+          _companyFieldControllers['targetClients']?.text = data['targetClients'] ?? '';
+          _companyFieldControllers['projects']?.text = data['projects'] ?? '';
+          _companyFieldControllers['achievements']?.text = data['achievements'] ?? '';
+          _selectedCompanySize = data['companySize'] as String?;
         });
       }
     } catch (e) {}
+    _calculateProfileCompleteness();
+  }
+
+  void _calculateProfileCompleteness() {
+    final total = 35;
+    int filled = 0;
+    if (_companyLogoUrl != null && _companyLogoUrl!.isNotEmpty) filled++;
+    if (_nameController.text.trim().isNotEmpty) filled++;
+    if (_companyFieldControllers['slogan']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['shortDescription']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_aboutController.text.trim().isNotEmpty) filled++;
+    if (_companyFieldControllers['creationYear']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_selectedCompanyType != null) filled++;
+    if (_companyFieldControllers['sector']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['subSector']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_selectedCompanySize != null) filled++;
+    if (_selectedLegalStatus != null) filled++;
+    if (_companyFieldControllers['registrationNumber']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['taxId']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_websiteController.text.trim().isNotEmpty) filled++;
+    if (_companyFieldControllers['country']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['region']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['city']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['district']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['address']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['postBox']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['gps']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['mapUrl']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['professionalEmail']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_phoneController.text.trim().isNotEmpty) filled++;
+    if (_companyFieldControllers['whatsapp']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['phoneSecondary']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['hrContact']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['recruitmentEmail']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['openingHours']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['activities']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['products']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['services']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['expertise']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['technologies']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['mainMarkets']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['geographicCoverage']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['targetClients']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['projects']?.text.trim().isNotEmpty ?? false) filled++;
+    if (_companyFieldControllers['achievements']?.text.trim().isNotEmpty ?? false) filled++;
+    setState(() => _profileCompleteness = filled / total);
   }
 
   void _logout() async {
@@ -1331,8 +1464,43 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         'website': _websiteController.text.trim(),
         'about': _aboutController.text.trim(),
         'companyLogoUrl': _companyLogoUrl,
+        'slogan': _companyFieldControllers['slogan']?.text.trim() ?? '',
+        'shortDescription': _companyFieldControllers['shortDescription']?.text.trim() ?? '',
+        'creationYear': _companyFieldControllers['creationYear']?.text.trim() ?? '',
+        'companyType': _selectedCompanyType ?? '',
+        'sector': _companyFieldControllers['sector']?.text.trim() ?? '',
+        'subSector': _companyFieldControllers['subSector']?.text.trim() ?? '',
+        'legalStatus': _selectedLegalStatus ?? '',
+        'registrationNumber': _companyFieldControllers['registrationNumber']?.text.trim() ?? '',
+        'taxId': _companyFieldControllers['taxId']?.text.trim() ?? '',
+        'country': _companyFieldControllers['country']?.text.trim() ?? '',
+        'region': _companyFieldControllers['region']?.text.trim() ?? '',
+        'city': _companyFieldControllers['city']?.text.trim() ?? '',
+        'district': _companyFieldControllers['district']?.text.trim() ?? '',
+        'address': _companyFieldControllers['address']?.text.trim() ?? '',
+        'postBox': _companyFieldControllers['postBox']?.text.trim() ?? '',
+        'gps': _companyFieldControllers['gps']?.text.trim() ?? '',
+        'mapUrl': _companyFieldControllers['mapUrl']?.text.trim() ?? '',
+        'professionalEmail': _companyFieldControllers['professionalEmail']?.text.trim() ?? '',
+        'whatsapp': _companyFieldControllers['whatsapp']?.text.trim() ?? '',
+        'phoneSecondary': _companyFieldControllers['phoneSecondary']?.text.trim() ?? '',
+        'hrContact': _companyFieldControllers['hrContact']?.text.trim() ?? '',
+        'recruitmentEmail': _companyFieldControllers['recruitmentEmail']?.text.trim() ?? '',
+        'openingHours': _companyFieldControllers['openingHours']?.text.trim() ?? '',
+        'activities': _companyFieldControllers['activities']?.text.trim() ?? '',
+        'products': _companyFieldControllers['products']?.text.trim() ?? '',
+        'services': _companyFieldControllers['services']?.text.trim() ?? '',
+        'expertise': _companyFieldControllers['expertise']?.text.trim() ?? '',
+        'technologies': _companyFieldControllers['technologies']?.text.trim() ?? '',
+        'mainMarkets': _companyFieldControllers['mainMarkets']?.text.trim() ?? '',
+        'geographicCoverage': _companyFieldControllers['geographicCoverage']?.text.trim() ?? '',
+        'targetClients': _companyFieldControllers['targetClients']?.text.trim() ?? '',
+        'projects': _companyFieldControllers['projects']?.text.trim() ?? '',
+        'achievements': _companyFieldControllers['achievements']?.text.trim() ?? '',
+        'companySize': _selectedCompanySize ?? '',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      _calculateProfileCompleteness();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profil mis à jour')),
@@ -1347,6 +1515,67 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Widget _settingsDropdownField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required List<String> items,
+    required void Function(String?) onChanged,
+    String? hint,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        hint: hint != null ? Text(hint, style: const TextStyle(color: Colors.black54)) : null,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: const Color(0xFF4CAF50)),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        items: items
+            .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+            .toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _settingsSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF00BCD4),
+        ),
+      ),
+    );
   }
 
   Widget _buildSettingsTab() {
@@ -1383,27 +1612,118 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            _settingsField(_nameController, 'Nom de l\'entreprise', phicons.PhosphorIconsRegular.briefcase),
-              _settingsField(
-                _phoneController,
-                'Téléphone',
-                phicons.PhosphorIconsRegular.phone,
-                type: TextInputType.phone,
-              ),
-              _settingsField(
-                _websiteController,
-                'Site web',
-                phicons.PhosphorIconsRegular.globeHemisphereWest,
-                type: TextInputType.url,
-              ),
-              _settingsField(
-                _aboutController,
-                'Description de l\'entreprise',
-                phicons.PhosphorIconsRegular.info,
-                maxLines: 4,
-              ),
-            const SizedBox(height: 16),
+            _settingsSectionHeader('📍 Informations générales'),
+            _settingsField(_nameController, 'Nom de l\'entreprise', phicons.PhosphorIconsRegular.buildings),
+            _settingsField(
+              _companyFieldControllers['slogan']!,
+              'Slogan',
+              phicons.PhosphorIconsRegular.tagSimple,
+            ),
+            _settingsField(
+              _companyFieldControllers['shortDescription']!,
+              'Description courte',
+              phicons.PhosphorIconsRegular.textT,
+              maxLines: 3,
+            ),
+            _settingsField(
+              _aboutController,
+              'Description complète',
+              phicons.PhosphorIconsRegular.article,
+              maxLines: 5,
+            ),
+            _settingsField(
+              _companyFieldControllers['creationYear']!,
+              'Année de création',
+              phicons.PhosphorIconsRegular.calendar,
+              type: TextInputType.number,
+            ),
+            _settingsDropdownField(
+              label: 'Type d\'entreprise',
+              icon: phicons.PhosphorIconsRegular.briefcase,
+              value: _selectedCompanyType,
+              items: _companyTypes,
+              hint: 'Sélectionner un type',
+              onChanged: (v) => setState(() => _selectedCompanyType = v),
+            ),
+            _settingsDropdownField(
+              label: 'Secteur d\'activité',
+              icon: phicons.PhosphorIconsRegular.globe,
+              value: _selectedSector,
+              items: _sectors,
+              hint: 'Sélectionner un secteur',
+              onChanged: (v) {
+                setState(() {
+                  _selectedSector = v;
+                  _companyFieldControllers['sector']?.text = v ?? '';
+                });
+              },
+            ),
+            _settingsField(
+              _companyFieldControllers['subSector']!,
+              'Sous-secteur d\'activité',
+              phicons.PhosphorIconsRegular.subtitles,
+            ),
+            _settingsDropdownField(
+              label: 'Taille de l\'entreprise',
+              icon: phicons.PhosphorIconsRegular.users,
+              value: _selectedCompanySize,
+              items: _companySizes,
+              hint: 'Sélectionner une taille',
+              onChanged: (v) => setState(() => _selectedCompanySize = v),
+            ),
+            _settingsDropdownField(
+              label: 'Statut juridique',
+              icon: phicons.PhosphorIconsRegular.scales,
+              value: _selectedLegalStatus,
+              items: _legalStatuses,
+              hint: 'Sélectionner un statut',
+              onChanged: (v) => setState(() => _selectedLegalStatus = v),
+            ),
+            _settingsField(
+              _companyFieldControllers['registrationNumber']!,
+              'Numéro d\'immatriculation / RCCM',
+              phicons.PhosphorIconsRegular.identificationCard,
+            ),
+            _settingsField(
+              _companyFieldControllers['taxId']!,
+              'Numéro d\'identification fiscale',
+              phicons.PhosphorIconsRegular.fileText,
+            ),
+            _settingsField(
+              _websiteController,
+              'Site web',
+              phicons.PhosphorIconsRegular.globeHemisphereWest,
+              type: TextInputType.url,
+            ),
+            _settingsSectionHeader('📍 Localisation'),
+            _settingsField(_companyFieldControllers['country']!, 'Pays', phicons.PhosphorIconsRegular.flag),
+            _settingsField(_companyFieldControllers['region']!, 'Région', phicons.PhosphorIconsRegular.mapTrifold),
+            _settingsField(_companyFieldControllers['city']!, 'Ville', phicons.PhosphorIconsRegular.city),
+            _settingsField(_companyFieldControllers['district']!, 'Quartier', phicons.PhosphorIconsRegular.mapPinArea),
+            _settingsField(_companyFieldControllers['address']!, 'Adresse complète', phicons.PhosphorIconsRegular.house),
+            _settingsField(_companyFieldControllers['postBox']!, 'Boîte postale', phicons.PhosphorIconsRegular.envelopeSimple),
+            _settingsField(_companyFieldControllers['gps']!, 'Coordonnées GPS', phicons.PhosphorIconsRegular.gps),
+            _settingsField(_companyFieldControllers['mapUrl']!, 'Carte de localisation (URL)', phicons.PhosphorIconsRegular.navigationArrow),
+            _settingsSectionHeader('📞 Coordonnées'),
+            _settingsField(_companyFieldControllers['professionalEmail']!, 'Adresse e-mail professionnelle', phicons.PhosphorIconsRegular.envelope, type: TextInputType.emailAddress),
+            _settingsField(_phoneController, 'Numéro de téléphone', phicons.PhosphorIconsRegular.phone, type: TextInputType.phone),
+            _settingsField(_companyFieldControllers['whatsapp']!, 'WhatsApp professionnel', phicons.PhosphorIconsRegular.whatsappLogo, type: TextInputType.phone),
+            _settingsField(_companyFieldControllers['phoneSecondary']!, 'Téléphone secondaire', phicons.PhosphorIconsRegular.phone, type: TextInputType.phone),
+            _settingsField(_companyFieldControllers['hrContact']!, 'Contact du service RH', phicons.PhosphorIconsRegular.userCircle),
+            _settingsField(_companyFieldControllers['recruitmentEmail']!, 'E-mail du service recrutement', phicons.PhosphorIconsRegular.envelope, type: TextInputType.emailAddress),
+            _settingsSectionHeader('📞 Horaires et activités'),
+            _settingsField(_companyFieldControllers['openingHours']!, 'Horaires d\'ouverture', phicons.PhosphorIconsRegular.clock),
+            _settingsField(_companyFieldControllers['activities']!, 'Activités de l\'entreprise', phicons.PhosphorIconsRegular.activity, maxLines: 3),
+            _settingsField(_companyFieldControllers['products']!, 'Produits proposés', phicons.PhosphorIconsRegular.package, maxLines: 3),
+            _settingsField(_companyFieldControllers['services']!, 'Services proposés', phicons.PhosphorIconsRegular.tagSimple, maxLines: 3),
+            _settingsField(_companyFieldControllers['expertise']!, 'Domaines d\'expertise', phicons.PhosphorIconsRegular.lightbulb, maxLines: 3),
+            _settingsField(_companyFieldControllers['technologies']!, 'Technologies utilisées', phicons.PhosphorIconsRegular.code, maxLines: 3),
+            _settingsField(_companyFieldControllers['mainMarkets']!, 'Principaux marchés', phicons.PhosphorIconsRegular.chartBar, maxLines: 3),
+            _settingsField(_companyFieldControllers['geographicCoverage']!, 'Zone géographique d\'intervention', phicons.PhosphorIconsRegular.mapPin, maxLines: 3),
+            _settingsField(_companyFieldControllers['targetClients']!, 'Clients ou types de clients ciblés', phicons.PhosphorIconsRegular.usersThree, maxLines: 3),
+            _settingsField(_companyFieldControllers['projects']!, 'Projets réalisés', phicons.PhosphorIconsRegular.folderOpen, maxLines: 4),
+            _settingsField(_companyFieldControllers['achievements']!, 'Réalisations importantes', phicons.PhosphorIconsRegular.trophy, maxLines: 4),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _isLoading ? null : _saveCompanyProfile,
               style: ElevatedButton.styleFrom(
@@ -2580,7 +2900,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   end: Alignment.bottomRight,
                 ),
               ),
-              child: Column(
+             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2596,17 +2916,56 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                         : null,
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    companyName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          companyName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: _profileCompleteness,
+                              backgroundColor: Colors.white.withValues(alpha: 0.3),
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                            Text(
+                              '${(_profileCompleteness * 100).round()}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+             ListTile(
+              leading: const Icon(Icons.settings, color: Color(0xFF00BCD4)),
+              title: const Text('Paramètres'),
+              subtitle: const Text('Informations de l\'entreprise'),
+              onTap: () {
+                Navigator.pop(context);
+                _openProfileSheet();
+              },
+            ),
+            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.business, color: Color(0xFF00BCD4)),
               title: const Text('Profil'),
@@ -2632,14 +2991,14 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
-  void _openProfileSheet() {
+   void _openProfileSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       builder: (context) => SafeArea(
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.9,
+          height: MediaQuery.of(context).size.height * 0.95,
           child: _buildSettingsTab(),
         ),
       ),
@@ -2704,6 +3063,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
           _buildOffersTab(),
           _buildDemandsView(),
           _buildMessagesView(),
+          _buildSettingsTab(),
         ],
       ),
       floatingActionButton: _currentIndex == 0 && !_showOfferForm
@@ -2731,11 +3091,11 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
             icon: Icon(phicons.PhosphorIconsRegular.scroll),
             label: 'Demandes',
           ),
-          BottomNavigationBarItem(
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                 const Icon(phicons.PhosphorIconsRegular.chat),
+            BottomNavigationBarItem(
+             icon: Stack(
+               clipBehavior: Clip.none,
+               children: [
+                const Icon(phicons.PhosphorIconsRegular.chat),
                 if (_unreadMessageCount > 0)
                   Positioned(
                     right: -6,
@@ -2759,9 +3119,13 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                     ),
                   ),
               ],
+             ),
+             label: 'Messagerie',
             ),
-            label: 'Messagerie',
-          ),
+            const BottomNavigationBarItem(
+             icon: Icon(phicons.PhosphorIconsRegular.gear),
+             label: 'Paramètres',
+            ),
         ],
       ),
     );
