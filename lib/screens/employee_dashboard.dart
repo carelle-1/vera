@@ -3507,6 +3507,279 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     );
   }
 
+  void _showCompanyProfile(String? companyUserId) {
+    if (companyUserId == null || companyUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informations de l\'entreprise non disponibles')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.symmetric(horizontal: 150),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<DocumentSnapshot>(
+                future: firestore.collection('users').doc(companyUserId).get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+                    return const Center(child: Text('Informations non disponibles'));
+                  }
+                  final info = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+
+                  final logoUrl = info['companyLogoUrl'] as String?;
+                  final name = (info['name'] ?? '').toString().trim();
+                  final slogan = (info['slogan'] ?? '').toString().trim();
+                  final shortDesc = (info['shortDescription'] ?? '').toString().trim();
+                  final about = (info['about'] ?? '').toString().trim();
+                  final creationYear = (info['creationYear'] ?? '').toString().trim();
+                  final companyType = (info['companyType'] ?? '').toString().trim();
+                  final sector = (info['sector'] ?? '').toString().trim();
+                  final subSector = (info['subSector'] ?? '').toString().trim();
+                  final companySize = (info['companySize'] ?? '').toString().trim();
+                  final legalStatus = (info['legalStatus'] ?? '').toString().trim();
+                  final registrationNumber = (info['registrationNumber'] ?? '').toString().trim();
+                  final taxId = (info['taxId'] ?? '').toString().trim();
+                  final country = (info['country'] ?? '').toString().trim();
+                  final region = (info['region'] ?? '').toString().trim();
+                  final city = (info['city'] ?? '').toString().trim();
+                  final district = (info['district'] ?? '').toString().trim();
+                  final address = (info['address'] ?? '').toString().trim();
+                  final professionalEmail = (info['professionalEmail'] ?? '').toString().trim();
+                  final phone = (info['phone'] ?? '').toString().trim();
+                  final website = (info['website'] ?? '').toString().trim();
+                  final whatsapp = (info['whatsapp'] ?? '').toString().trim();
+                  final phoneSecondary = (info['phoneSecondary'] ?? '').toString().trim();
+                  final hrContact = (info['hrContact'] ?? '').toString().trim();
+                  final recruitmentEmail = (info['recruitmentEmail'] ?? '').toString().trim();
+                  final openingHours = (info['openingHours'] ?? '').toString().trim();
+                  final activities = (info['activities'] ?? '').toString().trim();
+                  final products = (info['products'] ?? '').toString().trim();
+                  final services = (info['services'] ?? '').toString().trim();
+                  final expertise = (info['expertise'] ?? '').toString().trim();
+                  final technologies = (info['technologies'] ?? '').toString().trim();
+                  final mainMarkets = (info['mainMarkets'] ?? '').toString().trim();
+                  final geographicCoverage = (info['geographicCoverage'] ?? '').toString().trim();
+                  final targetClients = (info['targetClients'] ?? '').toString().trim();
+                  final projects = (info['projects'] ?? '').toString().trim();
+                  final achievements = (info['achievements'] ?? '').toString().trim();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (logoUrl != null && logoUrl.isNotEmpty)
+                            CachedNetworkImage(
+                              imageUrl: logoUrl,
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) =>
+                                  _buildDefaultCompanyLogo(name, size: 60),
+                              errorWidget: (context, url, error) =>
+                                  _buildDefaultCompanyLogo(name, size: 60),
+                            )
+                          else
+                            _buildDefaultCompanyLogo(name, size: 60),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (slogan.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          slogan,
+                          style: TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                      if (shortDesc.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text('Description',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(shortDesc),
+                      ],
+                      if (about.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text('À propos',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(about),
+                      ],
+                      if (creationYear.isNotEmpty ||
+                          companyType.isNotEmpty ||
+                          sector.isNotEmpty ||
+                          subSector.isNotEmpty ||
+                          legalStatus.isNotEmpty ||
+                          companySize.isNotEmpty ||
+                          registrationNumber.isNotEmpty ||
+                          taxId.isNotEmpty ||
+                          website.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Informations générales'),
+                        _buildProfileField('Année de création', creationYear),
+                        _buildProfileField('Type d\'entreprise', companyType),
+                        _buildProfileField('Secteur d\'activité', sector),
+                        _buildProfileField('Sous-secteur', subSector),
+                        _buildProfileField('Statut juridique', legalStatus),
+                        _buildProfileField('Taille', companySize),
+                        _buildProfileField('Numéro d\'immatriculation', registrationNumber),
+                        _buildProfileField('Numéro fiscal', taxId),
+                        _buildProfileField('Site web', website),
+                      ],
+                      if (address.isNotEmpty ||
+                          city.isNotEmpty ||
+                          region.isNotEmpty ||
+                          country.isNotEmpty ||
+                          district.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Localisation'),
+                        _buildProfileField('Adresse', address),
+                        _buildProfileField('Ville', city),
+                        _buildProfileField('Région', region),
+                        _buildProfileField('Pays', country),
+                        _buildProfileField('Quartier', district),
+                      ],
+                      if (professionalEmail.isNotEmpty ||
+                          phone.isNotEmpty ||
+                          whatsapp.isNotEmpty ||
+                          phoneSecondary.isNotEmpty ||
+                          hrContact.isNotEmpty ||
+                          recruitmentEmail.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Coordonnées'),
+                        _buildProfileField('Email professionnelle', professionalEmail),
+                        _buildProfileField('Téléphone', phone),
+                        _buildProfileField('WhatsApp', whatsapp),
+                        _buildProfileField('Téléphone secondaire', phoneSecondary),
+                        _buildProfileField('Contact RH', hrContact),
+                        _buildProfileField('Email recrutement', recruitmentEmail),
+                      ],
+                      if (openingHours.isNotEmpty ||
+                          activities.isNotEmpty ||
+                          products.isNotEmpty ||
+                          services.isNotEmpty ||
+                          expertise.isNotEmpty ||
+                          technologies.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Activités & Métier'),
+                        _buildProfileField('Horaires d\'ouverture', openingHours),
+                        _buildProfileField('Activités de l\'entreprise', activities),
+                        _buildProfileField('Produits', products),
+                        _buildProfileField('Services', services),
+                        _buildProfileField('Domaines d\'expertise', expertise),
+                        _buildProfileField('Technologies', technologies),
+                      ],
+                      if (mainMarkets.isNotEmpty ||
+                          geographicCoverage.isNotEmpty ||
+                          targetClients.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Marché'),
+                        _buildProfileField('Principaux marchés', mainMarkets),
+                        _buildProfileField('Zone géographique', geographicCoverage),
+                        _buildProfileField('Clients ciblés', targetClients),
+                      ],
+                      if (projects.isNotEmpty || achievements.isNotEmpty) ...[
+                        _buildProfileSectionHeader('Projets & Réalisations'),
+                        _buildProfileField('Projets réalisés', projects),
+                        _buildProfileField('Réalisations', achievements),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4CAF50),
+                          ),
+                          child: const Text('Fermer'),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileField(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label :',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF4CAF50),
+        ),
+      ),
+    );
+  }
+
   Widget _buildJobOfferCard(QueryDocumentSnapshot offer) {
     final data = offer.data() as Map<String, dynamic>?;
     final logoUrl = data?['logoUrl'] as String?;
@@ -3639,6 +3912,28 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                           _appliedOfferIds.contains(offer.id)
                               ? 'Deja postule'
                               : 'Postuler maintenant',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showCompanyProfile(data['userId']?.toString());
+                        },
+                        icon: const Icon(Icons.info_outline, color: Color(0xFF4CAF50)),
+                        label: const Text(
+                          'Voir les détails de l\'entreprise',
+                          style: TextStyle(color: Color(0xFF4CAF50)),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF4CAF50)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
