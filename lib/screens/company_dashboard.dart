@@ -1745,6 +1745,15 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                     )
                   : const Text('Enregistrer'),
             ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _isLoading ? null : _confirmLogout,
+              icon: const Icon(Icons.logout, color: Colors.red, size: 20),
+              label: const Text(
+                'Déconnexion',
+                style: TextStyle(color: Colors.red, fontSize: 16),
+              ),
+            ),
           ],
         ),
       ),
@@ -2892,10 +2901,10 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DrawerHeader(
+             DrawerHeader(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF00BCD4), Color(0xFF4CAF50)],
+                  colors: [Color(0xFF81D4FA), Color(0xFF4CAF50)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -2956,19 +2965,19 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                 ],
               ),
             ),
-             ListTile(
-              leading: const Icon(Icons.settings, color: Color(0xFF00BCD4)),
-              title: const Text('Paramètres'),
-              subtitle: const Text('Informations de l\'entreprise'),
+              ListTile(
+               leading: const Icon(Icons.settings, color: Color(0xFF4CAF50)),
+               title: const Text('Paramètres'),
+               subtitle: const Text('Informations de l\'entreprise'),
               onTap: () {
                 Navigator.pop(context);
                 _openProfileSheet();
               },
             ),
             const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.business, color: Color(0xFF00BCD4)),
-              title: const Text('Profil'),
+              ListTile(
+                leading: const Icon(Icons.business, color: Color(0xFF4CAF50)),
+                title: const Text('Profil'),
               subtitle: const Text('Logo et nom de l\'entreprise'),
               onTap: () {
                 Navigator.pop(context);
@@ -2991,7 +3000,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
     );
   }
 
-   void _openProfileSheet() {
+  void _openProfileSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -3003,21 +3012,38 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
         ),
       ),
     );
-  }
+   }
 
-  // ---------------------------------------------------------------------------
-  // BUILD
-  // ---------------------------------------------------------------------------
+   // ---------------------------------------------------------------------------
+   // BUILD
+   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final companyName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'Espace entreprise';
+    final slogan = _companyFieldControllers['slogan']?.text.trim() ?? '';
+    final description = _aboutController.text.trim();
+    final descriptionPreview = description.length > 80
+        ? '${description.substring(0, 80)}...'
+        : description;
+
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Menu',
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
+        toolbarHeight: _showSearchBar ? kToolbarHeight : 110,
+        leading: _showSearchBar
+            ? null
+            : CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white,
+                backgroundImage: _companyLogoUrl != null && _companyLogoUrl!.isNotEmpty
+                    ? NetworkImage(_companyLogoUrl!)
+                    : null,
+                child: _companyLogoUrl == null || _companyLogoUrl!.isEmpty
+                    ? const Icon(Icons.business, size: 20, color: Color(0xFF00BCD4))
+                    : null,
+              ),
         title: _showSearchBar
             ? TextField(
                 autofocus: true,
@@ -3035,13 +3061,42 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               )
-            : Text(
-                _nameController.text.trim().isNotEmpty
-                    ? _nameController.text.trim()
-                    : 'Espace entreprise',
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    companyName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (slogan.isNotEmpty)
+                    Text(
+                      slogan,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  if (descriptionPreview.isNotEmpty)
+                    Text(
+                      descriptionPreview,
+                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                ],
               ),
-        backgroundColor: const Color(0xFF00BCD4),
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF81D4FA), Color(0xFF4CAF50)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         actions: [
           _buildNotificationButton(),
           IconButton(
