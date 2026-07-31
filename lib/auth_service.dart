@@ -70,6 +70,7 @@ class UserSession extends ChangeNotifier {
   Future<void> signInWithGoogle() async {
     try {
       final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) return;
       final googleAuth = await googleUser.authentication;

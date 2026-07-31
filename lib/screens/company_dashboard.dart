@@ -984,15 +984,15 @@ class _CompanyDashboardState extends State<CompanyDashboard> {
                   : Text(_editingOfferId != null
                       ? 'Mettre à jour'
                       : "Ajouter l'offre"),
-            ),
-            if (_editingOfferId != null)
-              TextButton(
-                onPressed: () {
-                  _clearOfferForm();
-                  setState(() => _showOfferForm = false);
-                },    
-                child: const Text('Annuler'),
-              ),
+             ),
+             const SizedBox(height: 12),
+             TextButton(
+               onPressed: () {
+                 _clearOfferForm();
+                 setState(() => _showOfferForm = false);
+               },
+               child: const Text('Annuler'),
+             ),
           ],
         ),
       ),
